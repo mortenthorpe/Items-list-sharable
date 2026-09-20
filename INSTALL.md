@@ -91,14 +91,7 @@ live Doctrine install:
 ```bash
 php bin/console doctrine:schema:validate
 ```
-
-Put the app where the API is:
-
-```bash
-cp ../items-list.html public/
-```
-
-Then serve `public/` as the document root.
+Serve `public/` as the document root.
 
 ```bash
 symfony serve                       # development
