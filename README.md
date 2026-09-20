@@ -1,4 +1,4 @@
-# Shelf
+# Shelf - Work-In-Progress!
 
 A personal list of the products you own, kept on your own device, with a
 catalogue service that has no idea who you are.
