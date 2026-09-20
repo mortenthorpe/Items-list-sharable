@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shared list</title>
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper:      #eef1ec;
+  --card:       #ffffff;
+  --ink:        #13201a;
+  --ink-soft:   #4a5a52;
+  --rule:       #c6d1c8;
+  --rule-soft:  #dde4dd;
+  --accent:     #1f6f4a;
+  --stamp:      #a83a2c;
+  --radius:     3px;
+  --font:       'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono:       'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #0f1712;
+    --card:      #17211b;
+    --ink:       #e4ebe4;
+    --ink-soft:  #9aada1;
+    --rule:      #2b3a31;
+    --rule-soft: #212e26;
+    --accent:    #4fbb85;
+    --stamp:     #e0705f;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1712; --card: #17211b; --ink: #e4ebe4; --ink-soft: #9aada1;
+  --rule: #2b3a31; --rule-soft: #212e26; --accent: #4fbb85; --stamp: #e0705f;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.shell { max-width: 640px; margin: 0 auto; padding: 24px 18px 56px; }
+
+header { padding-bottom: 14px; border-bottom: 2px solid var(--ink); }
+h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.sub { margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+ul.items { list-style: none; margin: 20px 0 0; padding: 0; }
+ul.items li.withdrawn { border-left-color: #8a6412; }
+ul.items li {
+  background: var(--card);
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: baseline;
+}
+.number {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.name { font-weight: 500; }
+.code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+  word-break: break-all;
+}
+.code .label { text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+
+.gone {
+  display: inline-block; margin-top: 3px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: #8a6412; border: 1px solid #8a6412; border-radius: 99px; padding: 0 7px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .gone { color: #e0b355; border-color: #e0b355; }
+}
+.notice {
+  margin-top: 20px; padding: 18px 16px; border-radius: var(--radius);
+  border: 1px dashed var(--rule); color: var(--ink-soft);
+  font-size: 14px; text-align: center;
+}
+.notice.bad { border-color: var(--stamp); color: var(--stamp); }
+
+footer {
+  margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--rule-soft);
+  font-size: 12px; color: var(--ink-soft);
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <h1>Shared list</h1>
+    <p class="sub" id="summary">Loading&hellip;</p>
+  </header>
+
+  <ul class="items" id="items" hidden></ul>
+  <div class="notice" id="notice" hidden></div>
+
+  <footer id="footer" hidden>
+    This page shows only product numbers and names. It says nothing about who made the list.
+    Items marked <em>no longer sold</em> were withdrawn after the list was shared; they are kept here as they were.
+  </footer>
+</div>
+
+<script>
+'use strict';
+
+/**
+ * Reads a published list and shows it. Nothing is stored, nothing is sent
+ * anywhere, and the page has no idea who is looking at it — the address in
+ * the QR code is the only thing it knows.
+ */
+
+/**
+ * A list arrives in one of two shapes.
+ *
+ *   /items/user/{uuid}     a list registered on the server
+ *   /items/by-id/1-4-9     the numbers themselves, which is what a code
+ *                          made while the device was offline carries
+ *
+ * Both render identically. The second simply has nothing stored behind it.
+ */
+class ListAddress {
+  static fromLocation() {
+    const path = window.location.pathname;
+
+    const stored = path.match(/\/items\/user\/([0-9a-fA-F-]{36})\/?$/);
+    if (stored !== null) return { kind: 'stored', reference: stored[1] };
+
+    const numbers = path.match(/\/items\/by-id\/(\d+(?:-\d+)*)\/?$/);
+    if (numbers !== null) return { kind: 'numbers', reference: numbers[1] };
+
+    // Also accept query forms, so the page works outside the pretty routes.
+    const query = new URLSearchParams(window.location.search);
+    const id = query.get('id');
+    if (id !== null && /^[0-9a-fA-F-]{36}$/.test(id)) return { kind: 'stored', reference: id };
+
+    const items = query.get('items');
+    if (items !== null && /^\d+(?:-\d+)*$/.test(items)) return { kind: 'numbers', reference: items };
+
+    return null;
+  }
+}
+
+class ListSource {
+  constructor(address) { this.address = address; }
+
+  async fetchList() {
+    const path = this.address.kind === 'stored'
+      ? '/api/lists/' + encodeURIComponent(this.address.reference)
+      : '/api/items/by-id/' + encodeURIComponent(this.address.reference);
+
+    const response = await fetch(path, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      credentials: 'omit'
+    });
+
+    if (response.status === 404) throw new ListMissing();
+    if (response.status === 400) throw new ListMissing();
+    if (!response.ok) throw new Error('The server answered ' + response.status);
+    return response.json();
+  }
+}
+
+class ListMissing extends Error {
+  constructor() {
+    super('No list at that address');
+    this.name = 'ListMissing';
+  }
+}
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    const keys = Object.keys(attrs);
+    for (let i = 0; i < keys.length; i++) {
+      if (keys[i] === 'text') node.textContent = attrs[keys[i]];
+      else node.setAttribute(keys[i], attrs[keys[i]]);
+    }
+  }
+  if (children) {
+    for (let i = 0; i < children.length; i++) {
+      if (children[i]) node.appendChild(children[i]);
+    }
+  }
+  return node;
+}
+
+class ListView {
+  constructor(nodes) { this.nodes = nodes; }
+
+  /** The code printed on a product: a barcode if it has one, else its QR. */
+  static codeOf(item) {
+    const codes = item.codes || [];
+    for (let i = 0; i < codes.length; i++) {
+      if (codes[i].kind === 'barcode') return { label: 'barcode', value: codes[i].value };
+    }
+    for (let i = 0; i < codes.length; i++) {
+      if (codes[i].kind === 'qr') return { label: 'qr', value: codes[i].value };
+    }
+    if (item.barcode) return { label: 'barcode', value: item.barcode };
+    if (item.qr_code) return { label: 'qr', value: item.qr_code };
+    return null;
+  }
+
+  render(payload) {
+    const items = payload.data || [];
+    this.nodes.summary.textContent =
+      items.length + (items.length === 1 ? ' item' : ' items') + ' \u00b7 ' + ListView.when(payload.created_at);
+
+    this.nodes.list.textContent = '';
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const code = ListView.codeOf(item);
+
+      const body = [el('div', { class: 'name', text: item.name })];
+
+      /*
+       * A withdrawn product is shown exactly like any other, with a note.
+       * This list records what someone had when they shared it; a supplier
+       * retiring a line afterwards must not quietly edit that.
+       */
+      if (item.withdrawn || item.deleted_at) {
+        body.push(el('div', { class: 'gone', text: 'no longer sold' }));
+      }
+
+      if (code !== null) {
+        body.push(el('div', { class: 'code' }, [
+          el('span', { class: 'label', text: code.label }),
+          el('span', { text: ' ' + code.value })
+        ]));
+      }
+
+      this.nodes.list.appendChild(el('li', {
+        class: (item.withdrawn || item.deleted_at) ? 'withdrawn' : ''
+      }, [
+        el('span', { class: 'number', text: '#' + item.id }),
+        el('div', {}, body)
+      ]));
+    }
+
+    if (payload.missing > 0) {
+      this.nodes.notice.textContent = payload.missing +
+        (payload.missing === 1 ? ' item on this list is' : ' items on this list are') +
+        ' no longer in the catalogue and could not be shown.';
+      this.nodes.notice.classList.remove('bad');
+      this.nodes.notice.hidden = false;
+    } else {
+      this.nodes.notice.hidden = true;
+    }
+
+    this.nodes.list.hidden = false;
+    this.nodes.footer.hidden = false;
+  }
+
+  static when(iso) {
+    if (!iso) return 'from the code itself';
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return 'shared';
+    return 'shared ' + date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  problem(message, summary) {
+    this.nodes.summary.textContent = summary;
+    this.nodes.notice.textContent = message;
+    this.nodes.notice.classList.add('bad');
+    this.nodes.notice.hidden = false;
+    this.nodes.list.hidden = true;
+  }
+
+  empty() {
+    this.nodes.summary.textContent = 'Nothing on this list';
+    this.nodes.notice.textContent = 'The list is empty.';
+    this.nodes.notice.hidden = false;
+    this.nodes.list.hidden = true;
+  }
+}
+
+(async function main() {
+  const view = new ListView({
+    summary: document.getElementById('summary'),
+    list: document.getElementById('items'),
+    notice: document.getElementById('notice'),
+    footer: document.getElementById('footer')
+  });
+
+  const address = ListAddress.fromLocation();
+
+  if (address === null) {
+    view.problem('This address does not contain a list reference.', 'Nothing to show');
+    return;
+  }
+
+  try {
+    const payload = await new ListSource(address).fetchList();
+    if (!payload.data || payload.data.length === 0) { view.empty(); return; }
+    view.render(payload);
+  } catch (err) {
+    if (err instanceof ListMissing) {
+      view.problem('That list no longer exists, or the address is wrong.', 'Not found');
+      return;
+    }
+    view.problem('Could not reach the server. Try again in a moment.', 'Unavailable');
+  }
+})();
+</script>
+</body>
+</html>

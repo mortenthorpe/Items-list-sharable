@@ -1,0 +1,17 @@
+parameters:
+    cors_allow_origin: '%env(CORS_ALLOW_ORIGIN)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+            - '../src/Entity/'
+
+    App\EventSubscriber\PrivacySubscriber:
+        arguments:
+            $allowedOrigin: '%cors_allow_origin%'

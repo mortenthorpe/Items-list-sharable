@@ -1,0 +1,5382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shelf — a private items list</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper:      #eef1ec;
+  --card:       #ffffff;
+  --ink:        #13201a;
+  --ink-soft:   #4a5a52;
+  --rule:       #c6d1c8;
+  --rule-soft:  #dde4dd;
+  --accent:     #1f6f4a;
+  --accent-ink: #ffffff;
+  --stamp:      #a83a2c;
+  --warn:       #8a6412;
+  --warn-bg:    #f7edd4;
+  --focus:      #1f6f4a;
+  --shadow:     0 1px 0 var(--rule);
+  --radius:     3px;
+  --font:       'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono:       'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+:root:not([data-theme="light"]) {
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #0f1712;
+    --card:      #17211b;
+    --ink:       #e4ebe4;
+    --ink-soft:  #9aada1;
+    --rule:      #2b3a31;
+    --rule-soft: #212e26;
+    --accent:    #4fbb85;
+    --accent-ink:#0d1611;
+    --stamp:     #e0705f;
+    --warn:      #e0b355;
+    --warn-bg:   #2e2717;
+    --focus:     #4fbb85;
+    --shadow:    0 1px 0 var(--rule);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:     #0f1712;
+  --card:      #17211b;
+  --ink:       #e4ebe4;
+  --ink-soft:  #9aada1;
+  --rule:      #2b3a31;
+  --rule-soft: #212e26;
+  --accent:    #4fbb85;
+  --accent-ink:#0d1611;
+  --stamp:     #e0705f;
+  --warn:      #e0b355;
+  --warn-bg:   #2e2717;
+  --focus:     #4fbb85;
+  --shadow:    0 1px 0 var(--rule);
+}
+
+* { box-sizing: border-box; }
+/* A class that sets display would otherwise beat the hidden attribute. */
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- shell ---------- */
+.shell { max-width: 1080px; margin: 0 auto; padding: 24px 20px 72px; }
+
+.masthead {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  align-items: baseline; justify-content: space-between;
+  padding-bottom: 14px; border-bottom: 2px solid var(--ink);
+}
+.masthead h1 {
+  margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+}
+.masthead p { margin: 2px 0 0; color: var(--ink-soft); font-size: 13.5px; max-width: 46ch; }
+
+/* ---------- panels ---------- */
+/* ---- primary actions ----
+   Full width, tall, and well separated: these are the two things anyone
+   comes here to do, and they are most often tapped with a thumb. */
+.actions { display: grid; gap: 18px; margin-top: 30px; }
+.action-button {
+  width: 100%; min-height: 60px; padding: 16px 20px;
+  font-size: 16px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center; gap: 11px;
+}
+.action-button .chev { margin-left: 4px; transition: transform .18s ease; opacity: .7; }
+.action-button[aria-expanded="true"] .chev { transform: rotate(180deg); }
+@media (max-width: 560px) {
+  .actions { gap: 20px; }
+  .action-button { min-height: 64px; }
+}
+
+.catalogue-region { margin-top: 26px; }
+
+/* ---- cart trigger ---- */
+.cart-button {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  padding: 8px 13px; font-weight: 500;
+}
+.cart-button:hover:not(:disabled) { border-color: var(--accent); filter: brightness(1.06); }
+.cart-count {
+  font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+  background: var(--accent-ink); color: var(--accent);
+  border-radius: 99px; min-width: 20px; text-align: center; padding: 1px 6px;
+}
+
+/* ---- drawer ---- */
+dialog.drawer {
+  border: 0; border-left: 1px solid var(--rule); padding: 0;
+  background: var(--paper); color: var(--ink);
+  margin: 0 0 0 auto; height: 100%; max-height: 100%;
+  width: min(440px, 100%); max-width: 100%;
+  display: flex; flex-direction: column;
+  box-shadow: -14px 0 40px rgba(10, 18, 14, .18);
+}
+dialog.drawer:not([open]) { display: none; }
+dialog.drawer::backdrop { background: rgba(10, 18, 14, .45); }
+dialog.drawer[open] { animation: slide-in .2s ease-out; }
+@keyframes slide-in { from { transform: translateX(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+.drawer .sheet-head { background: var(--card); border-bottom: 1px solid var(--rule); }
+.drawer .sheet-head h2 { display: flex; align-items: baseline; gap: 9px; }
+.drawer-body { padding: 14px 16px; overflow-y: auto; flex: 1; }
+.drawer-foot {
+  padding: 12px 16px; border-top: 1px solid var(--rule); background: var(--card);
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+}
+.drawer-foot .grow { flex: 1; }
+.drawer-foot.confirm { display: block; }
+.drawer-foot.confirm p { margin: 0 0 10px; font-size: 13px; color: var(--ink); line-height: 1.5; }
+.drawer-foot.confirm p .aside { color: var(--ink-soft); }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+button.danger-outline {
+  border-color: var(--rule); color: var(--stamp); background: transparent;
+}
+button.danger-outline:hover:not(:disabled) { border-color: var(--stamp); }
+button.danger-solid {
+  background: var(--stamp); border-color: var(--stamp); color: #fff;
+}
+button.danger-solid:hover:not(:disabled) { filter: brightness(1.06); }
+
+
+/* ---- scan sheet ---- */
+.scan-stage {
+  position: relative; background: #0b120e; border-radius: var(--radius);
+  overflow: hidden; aspect-ratio: 4 / 3; display: grid; place-items: center;
+}
+/* contain, not cover: the reticle has to frame the same pixels the
+   decoder sees, or it is telling the user a lie. */
+.scan-stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.scan-reticle {
+  position: absolute; inset: 15% 10%; border: 2px solid rgba(255,255,255,.8);
+  border-radius: 6px; pointer-events: none;
+}
+.scan-stage.busy .scan-reticle { border-color: rgba(255,255,255,.95); }
+.scan-stage #scan-frozen { width: 100%; height: 100%; object-fit: contain; display: block; }
+.scan-stage.done .scan-reticle { display: none; }
+.scan-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.scan-form-row { display: flex; gap: 12px; align-items: flex-start; }
+.codes-held { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.code-chip {
+  font-family: var(--mono); font-size: 11px; padding: 4px 9px; border-radius: 99px;
+  border: 1px solid var(--rule); color: var(--ink-soft); background: var(--paper);
+}
+.code-chip strong { color: var(--accent); font-weight: 600; }
+button.wide { width: 100%; margin-top: 10px; min-height: 44px; }
+.link-existing { margin-top: 14px; border-top: 1px solid var(--rule-soft); padding-top: 12px; }
+.link-existing summary { font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+.link-existing[open] summary { margin-bottom: 10px; color: var(--ink); }
+.link-existing select {
+  font: inherit; width: 100%; padding: 9px 10px; color: var(--ink);
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
+}
+.scan-form-row img {
+  width: 76px; height: 76px; object-fit: cover; border-radius: var(--radius);
+  border: 1px solid var(--rule); flex: none;
+}
+.hint { margin: 6px 0 0; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+.scan-actions .grow { flex: 1; }
+.scan-stage.done .scan-reticle { border-color: var(--accent); }
+.scan-status { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft); min-height: 1.4em; }
+.scan-status.bad { color: var(--stamp); }
+.scan-status strong { color: var(--ink); font-family: var(--mono); font-weight: 600; }
+label.field { display: block; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 4px; }
+#scan-form { margin-top: 12px; }
+#scan-form input, .manual-row input {
+  font: inherit; color: var(--ink); background: var(--card);
+  border: 1px solid var(--rule); border-radius: var(--radius); padding: 8px 10px; width: 100%;
+}
+.manual { margin-top: 12px; }
+.manual-row { display: flex; gap: 8px; margin-top: 8px; }
+.manual-row input { flex: 1; }
+
+.panel-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 10px;
+}
+.panel-head h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.count { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+
+/* ---------- controls ---------- */
+button {
+  font: inherit; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--rule); background: var(--card); color: var(--ink);
+  border-radius: var(--radius); padding: 7px 13px;
+}
+button:hover:not(:disabled) { border-color: var(--ink-soft); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover:not(:disabled) { filter: brightness(1.06); }
+button.quiet { border-color: transparent; background: transparent; color: var(--ink-soft); padding: 5px 8px; }
+button.quiet:hover:not(:disabled) { color: var(--ink); border-color: var(--rule); }
+button.danger { border-color: transparent; background: transparent; color: var(--stamp); padding: 5px 8px; }
+button.danger:hover:not(:disabled) { border-color: var(--stamp); }
+
+.filter-row {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  margin: 0 0 11px; font-size: 12.5px; color: var(--ink-soft);
+}
+.filter-row label { white-space: nowrap; }
+input[type="date"] {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--card);
+  border: 1px solid var(--rule); border-radius: var(--radius); padding: 5px 8px;
+  min-height: 34px; color-scheme: inherit;
+}
+input[type="date"]:hover { border-color: var(--ink-soft); }
+.filter-row button { font-size: 12.5px; }
+
+/* ---------- lists ---------- */
+.stack { list-style: none; margin: 0; padding: 0; }
+.stack li {
+  background: var(--card); border: 1px solid var(--rule-soft); border-left: 3px solid var(--rule);
+  border-radius: var(--radius); padding: 10px 12px; margin-bottom: 7px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+}
+.stack li.owned { border-left-color: var(--accent); }
+.name { font-weight: 500; }
+.added {
+  font-size: 12.5px; color: var(--ink); opacity: .82; margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.held {
+  font-family: var(--mono); font-size: 11px; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 99px; padding: 0 6px;
+}
+.gone {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--warn); border: 1px solid var(--warn); border-radius: 99px; padding: 0 7px;
+}
+.stack li.gone-row { border-left-color: var(--warn); }
+.fresh {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--accent-ink); background: var(--accent); border-radius: 99px; padding: 1px 7px;
+}
+.meta { font-size: 12px; color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 1px; }
+.id-chip { font-family: var(--mono); font-size: 11px; }
+.stack li.cat { grid-template-columns: 1fr auto; padding: 12px; gap: 12px; }
+/* The row button is the real target for adding, so give it a thumb's worth
+   of room rather than the compact default. */
+.stack li.cat button { min-height: 44px; padding: 10px 20px; }
+@media (max-width: 560px) {
+  .stack li.cat { padding: 12px 12px 12px 14px; }
+  .stack li.cat button { min-height: 48px; padding: 12px 22px; }
+  .row-actions button { min-height: 44px; padding: 10px 12px; }
+  .thumb-empty, .thumb, .thumb-btn { width: 52px; height: 52px; }
+}
+
+.thumb {
+  width: 46px; height: 46px; border-radius: var(--radius); object-fit: cover;
+  border: 1px solid var(--rule); background: var(--rule-soft); display: block;
+}
+.thumb-empty {
+  width: 46px; height: 46px; border-radius: var(--radius);
+  border: 1px dashed var(--rule); display: grid; place-items: center;
+  color: var(--ink-soft); font-size: 17px; background: transparent;
+  padding: 0; cursor: pointer;
+}
+.thumb-btn { padding: 0; border: 0; background: none; cursor: pointer; line-height: 0; }
+.row-actions { display: flex; align-items: center; gap: 2px; }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+.empty {
+  border: 1px dashed var(--rule); border-radius: var(--radius);
+  padding: 22px 16px; color: var(--ink-soft); font-size: 13.5px; text-align: center;
+}
+.drift {
+  margin: 10px 0 0; padding: 9px 11px; border-radius: var(--radius);
+  background: var(--warn-bg); color: var(--warn); font-size: 12.5px;
+}
+
+/* ---------- qr sheet ---------- */
+dialog.sheet {
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--card);
+  color: var(--ink); padding: 0; max-width: 560px; width: calc(100% - 32px);
+  box-shadow: 0 18px 50px rgba(0,0,0,.24);
+}
+dialog.sheet::backdrop { background: rgba(10, 18, 14, .55); }
+.sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--rule-soft);
+}
+.sheet-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.sheet-body { padding: 16px; }
+.qr-stage {
+  background: #ffffff; border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: 14px; display: grid; place-items: center; min-height: 240px;
+}
+.qr-stage svg { width: 100%; max-width: 300px; height: auto; display: block; }
+.qr-note { margin: 10px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+
+.notice {
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--warn-bg); color: var(--warn); font-size: 13px; border: 1px solid transparent;
+}
+.payload {
+  margin-top: 12px; font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft);
+  background: var(--paper); border: 1px solid var(--rule-soft); border-radius: var(--radius);
+  padding: 8px 10px; max-height: 92px; overflow: auto; word-break: break-all;
+}
+.sheet-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 0 16px 16px; }
+#share-qr { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ---------- toast ---------- */
+/* A popover so it joins the top layer and clears any open dialog's backdrop. */
+#toast {
+  position: fixed; inset: auto; left: 50%; bottom: 22px; transform: translateX(-50%);
+  margin: 0; border: 0; overflow: visible;
+  background: var(--ink); color: var(--paper); padding: 9px 16px;
+  border-radius: var(--radius); font-size: 13.5px; opacity: 0; pointer-events: none;
+  transition: opacity .18s ease; max-width: 90vw;
+}
+#toast.visible { opacity: 1; }
+#toast:not(.visible):not([popover]) { display: block; }
+
+.privacy-line {
+  margin-top: 30px; padding-top: 12px; border-top: 1px solid var(--rule-soft);
+  font-size: 12.5px; color: var(--ink-soft); max-width: 68ch;
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="masthead">
+    <div>
+      <h1>Shelf</h1>
+      <p>Your list lives in this browser. Photos never leave the device, and the QR code carries nothing but item numbers.</p>
+    </div>
+    <button id="open-cart" class="cart-button" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h7.9a1.5 1.5 0 0 0 1.5-1.2L20 7H6"/>
+        <circle cx="9.5" cy="19" r="1.3"/>
+        <circle cx="17" cy="19" r="1.3"/>
+      </svg>
+      Your items
+      <span class="cart-count" id="cart-count" aria-hidden="true">0</span>
+    </button>
+  </header>
+
+  <section class="actions">
+    <button id="open-scan" class="action-button primary">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/>
+        <path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/>
+        <path d="M4 12h16"/>
+      </svg>
+      Add item from Scan
+    </button>
+
+    <button id="toggle-catalogue" class="action-button" aria-expanded="false" aria-controls="catalogue-region">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/>
+      </svg>
+      Add item from Catalogue
+      <svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+  </section>
+
+  <section class="catalogue-region" id="catalogue-region" hidden>
+    <div class="panel-head">
+      <h2>Catalogue</h2>
+      <span class="count" id="catalogue-count"></span>
+    </div>
+    <div id="catalogue-host"></div>
+  </section>
+
+  <p class="privacy-line">
+    Items are keyed locally by the UUID the server sent. Each record keeps the UUID, the name, the item number and the
+    moment you added it. Photos are stored separately in this browser and are never uploaded or encoded into the QR code.
+  </p>
+</div>
+
+<dialog class="sheet" id="scan-sheet" aria-label="Add item from Scan">
+  <div class="sheet-head">
+    <h2>Add item from Scan</h2>
+    <button class="quiet" id="close-scan">Close</button>
+  </div>
+  <div class="sheet-body">
+    <div class="scan-stage" id="scan-stage">
+      <video id="scan-video" playsinline muted></video>
+      <img id="scan-frozen" alt="" hidden>
+      <div class="scan-reticle" aria-hidden="true"></div>
+    </div>
+    <div class="scan-actions">
+      <button class="primary" id="scan-capture">Capture now</button>
+      <span class="grow"></span>
+    </div>
+    <p class="scan-status" id="scan-status" role="status" aria-live="polite"></p>
+
+    <div id="scan-form" hidden>
+      <div class="scan-form-row">
+        <img id="scan-shot" alt="" hidden>
+        <div class="grow">
+          <label class="field" for="scan-name">Product name</label>
+          <input type="text" id="scan-name" autocomplete="off" spellcheck="false">
+          <p class="hint" id="scan-shot-note" hidden>The frame you scanned is kept with this item, on this device only.</p>
+        </div>
+      </div>
+
+      <div class="codes-held" id="codes-held"></div>
+      <button class="quiet wide" id="scan-second">Scan the other code on the pack</button>
+      <p class="hint" id="second-hint">A barcode and a QR code only find each other if both are recorded together.</p>
+
+      <details class="link-existing" id="link-existing">
+        <summary>This is a product already in the catalogue</summary>
+        <label class="field" for="link-target">Which product is it?</label>
+        <select id="link-target"></select>
+        <button id="link-go" class="wide">Add this code to that product</button>
+      </details>
+    </div>
+
+    <div class="manual" id="manual-block">
+      <button class="quiet" id="manual-toggle">Type the number instead</button>
+      <div class="manual-row" id="manual-row" hidden>
+        <input type="text" id="manual-code" inputmode="numeric" autocomplete="off"
+               placeholder="5701120030018">
+        <button id="manual-go">Look up</button>
+      </div>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="quiet" id="scan-again" hidden>Scan another</button>
+    <button class="primary" id="scan-save" hidden>Add to catalogue</button>
+  </div>
+</dialog>
+
+<dialog class="drawer" id="cart" aria-label="Your items">
+  <div class="sheet-head">
+    <h2>Your items <span class="count" id="mine-count"></span></h2>
+    <button class="quiet" id="close-cart">Close</button>
+  </div>
+  <div class="drawer-body">
+    <div class="filter-row">
+      <label for="added-since">Added on or after</label>
+      <input type="date" id="added-since">
+      <button id="clear-filter" class="quiet" hidden>Show all</button>
+    </div>
+    <div id="mine-host"></div>
+    <p class="hint" id="storage-note"></p>
+  </div>
+  <div class="drawer-foot" id="drawer-foot">
+    <button id="delete-mine" class="danger-outline">Delete my items</button>
+    <span class="grow"></span>
+    <button id="open-qr" class="primary">Show QR code</button>
+  </div>
+  <div class="drawer-foot confirm" id="confirm-foot" hidden>
+    <p id="confirm-text"></p>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" class="quiet">Keep them</button>
+      <button id="confirm-go" class="danger-solid">Delete from this device</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="sheet" id="qr-sheet">
+  <div class="sheet-head">
+    <h2>Share this list</h2>
+    <button class="quiet" id="close-qr" aria-label="Close">Close</button>
+  </div>
+  <div class="sheet-body">
+    <div class="qr-stage" id="qr-stage"></div>
+    <p class="qr-note" id="qr-note"></p>
+    <div id="qr-notice"></div>
+    <div class="payload" id="qr-payload" hidden></div>
+  </div>
+  <div class="sheet-foot">
+    <button id="copy-payload">Copy link</button>
+    <button id="share-qr" hidden>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 15V3"/><path d="M8 7l4-4 4 4"/>
+        <path d="M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/>
+      </svg>
+      Share
+    </button>
+    <button id="download-qr" class="primary">Download PNG</button>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite" popover="manual"></div>
+
+<script>
+'use strict';
+
+/* ==================================================================
+ * 1. QR ENCODING — data in, module matrix out. No DOM, no rendering.
+ *    Verified module-for-module against a reference implementation
+ *    across all 40 versions x 4 EC levels x 8 masks.
+ * ================================================================== */
+
+const ECC_PER_BLOCK = {
+  L: [7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+  M: [10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28],
+  Q: [13,22,18,26,18,24,18,22,20,24,28,26,24,20,30,24,28,28,26,30,28,30,30,30,30,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+  H: [17,28,22,16,22,28,26,26,24,28,24,28,22,24,24,30,28,28,26,28,30,24,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30]
+};
+const NUM_BLOCKS = {
+  L: [1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25],
+  M: [1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49],
+  Q: [1,1,2,2,4,4,6,6,8,8,8,10,12,16,12,17,16,18,21,20,23,23,25,27,29,34,34,35,38,40,43,45,48,51,53,56,59,62,65,68],
+  H: [1,1,2,4,4,4,5,6,8,8,11,11,16,16,18,16,19,21,25,25,25,34,30,32,35,37,40,42,45,48,51,54,57,60,63,66,70,74,77,81]
+};
+const FORMAT_BITS = { M: 0, L: 1, H: 2, Q: 3 };
+const MODE = {
+  NUMERIC:      { bits: 0x1, charBits: [10, 12, 14] },
+  ALPHANUMERIC: { bits: 0x2, charBits: [9, 11, 13] },
+  BYTE:         { bits: 0x4, charBits: [8, 16, 16] }
+};
+const ALNUM_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
+
+class BitBuffer {
+  constructor() { this.bits = []; }
+  append(value, length) {
+    for (let i = length - 1; i >= 0; i--) this.bits.push((value >>> i) & 1);
+  }
+  get length() { return this.bits.length; }
+}
+
+class QrSegment {
+  constructor(mode, charCount, bits) {
+    this.mode = mode;
+    this.charCount = charCount;
+    this.bits = bits;
+  }
+  static isNumeric(text) {
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] < '0' || text[i] > '9') return false;
+    }
+    return text.length > 0;
+  }
+  static isAlphanumeric(text) {
+    for (let i = 0; i < text.length; i++) {
+      if (ALNUM_CHARS.indexOf(text[i]) === -1) return false;
+    }
+    return text.length > 0;
+  }
+  static numeric(text) {
+    const buf = new BitBuffer();
+    for (let i = 0; i < text.length; ) {
+      const n = Math.min(3, text.length - i);
+      buf.append(parseInt(text.substr(i, n), 10), n * 3 + 1);
+      i += n;
+    }
+    return new QrSegment(MODE.NUMERIC, text.length, buf.bits);
+  }
+  static alphanumeric(text) {
+    const buf = new BitBuffer();
+    let i = 0;
+    for (; i + 2 <= text.length; i += 2) {
+      buf.append(ALNUM_CHARS.indexOf(text[i]) * 45 + ALNUM_CHARS.indexOf(text[i + 1]), 11);
+    }
+    if (i < text.length) buf.append(ALNUM_CHARS.indexOf(text[i]), 6);
+    return new QrSegment(MODE.ALPHANUMERIC, text.length, buf.bits);
+  }
+  static byte(text) {
+    const bytes = new TextEncoder().encode(text);
+    const buf = new BitBuffer();
+    for (let i = 0; i < bytes.length; i++) buf.append(bytes[i], 8);
+    return new QrSegment(MODE.BYTE, bytes.length, buf.bits);
+  }
+  static best(text) {
+    if (QrSegment.isNumeric(text)) return QrSegment.numeric(text);
+    if (QrSegment.isAlphanumeric(text)) return QrSegment.alphanumeric(text);
+    return QrSegment.byte(text);
+  }
+}
+
+const GF_EXP = new Uint8Array(512);
+const GF_LOG = new Uint8Array(256);
+(function initGaloisField() {
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    GF_EXP[i] = x;
+    GF_LOG[x] = i;
+    x <<= 1;
+    if (x & 0x100) x ^= 0x11d;
+  }
+  for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+})();
+
+function gfMul(a, b) {
+  if (a === 0 || b === 0) return 0;
+  return GF_EXP[GF_LOG[a] + GF_LOG[b]];
+}
+function rsGeneratorPoly(degree) {
+  let poly = [1];
+  for (let i = 0; i < degree; i++) {
+    const next = new Array(poly.length + 1).fill(0);
+    for (let j = 0; j < poly.length; j++) {
+      next[j] ^= poly[j];
+      next[j + 1] ^= gfMul(poly[j], GF_EXP[i]);
+    }
+    poly = next;
+  }
+  return poly;
+}
+function rsRemainder(data, degree) {
+  const gen = rsGeneratorPoly(degree);
+  const result = new Array(degree).fill(0);
+  for (let i = 0; i < data.length; i++) {
+    const factor = data[i] ^ result[0];
+    for (let j = 0; j < degree - 1; j++) result[j] = result[j + 1];
+    result[degree - 1] = 0;
+    for (let j = 0; j < degree; j++) result[j] ^= gfMul(gen[j + 1], factor);
+  }
+  return result;
+}
+
+function rawDataModules(version) {
+  let result = (16 * version + 128) * version + 64;
+  if (version >= 2) {
+    const numAlign = Math.floor(version / 7) + 2;
+    result -= (25 * numAlign - 10) * numAlign - 55;
+    if (version >= 7) result -= 36;
+  }
+  return result;
+}
+function dataCodewords(version, ecl) {
+  return Math.floor(rawDataModules(version) / 8)
+    - ECC_PER_BLOCK[ecl][version - 1] * NUM_BLOCKS[ecl][version - 1];
+}
+function charCountBits(mode, version) {
+  const group = version <= 9 ? 0 : (version <= 26 ? 1 : 2);
+  return mode.charBits[group];
+}
+function segmentBitLength(segment, version) {
+  return 4 + charCountBits(segment.mode, version) + segment.bits.length;
+}
+function fitVersion(segment, ecl, minVersion, maxVersion) {
+  for (let v = minVersion; v <= maxVersion; v++) {
+    if (segmentBitLength(segment, v) <= dataCodewords(v, ecl) * 8) return v;
+  }
+  return null;
+}
+/** How many characters of `mode` a given version+level can hold. */
+function capacityInChars(mode, version, ecl) {
+  const available = dataCodewords(version, ecl) * 8 - 4 - charCountBits(mode, version);
+  if (available < 0) return 0;
+  if (mode === MODE.NUMERIC) {
+    const triples = Math.floor(available / 10);
+    const rest = available - triples * 10;
+    let extra = 0;
+    if (rest >= 7) extra = 2; else if (rest >= 4) extra = 1;
+    return triples * 3 + extra;
+  }
+  if (mode === MODE.ALPHANUMERIC) {
+    const pairs = Math.floor(available / 11);
+    return pairs * 2 + (available - pairs * 11 >= 6 ? 1 : 0);
+  }
+  return Math.floor(available / 8);
+}
+
+class QrCode {
+  constructor(version, ecl, mask, modules) {
+    this.version = version;
+    this.ecl = ecl;
+    this.mask = mask;
+    this.size = version * 4 + 17;
+    this.modules = modules;
+  }
+
+  static encodeText(text, ecl, minVersion, maxVersion, forcedMask) {
+    return QrCode.encodeSegment(QrSegment.best(text), ecl, minVersion || 1, maxVersion || 40, forcedMask);
+  }
+
+  static encodeSegment(segment, ecl, minVersion, maxVersion, forcedMask) {
+    const version = fitVersion(segment, ecl, minVersion || 1, maxVersion || 40);
+    if (version === null) throw new Error('Data does not fit at level ' + ecl);
+
+    const capacityBits = dataCodewords(version, ecl) * 8;
+    const buf = new BitBuffer();
+    buf.append(segment.mode.bits, 4);
+    buf.append(segment.charCount, charCountBits(segment.mode, version));
+    for (let i = 0; i < segment.bits.length; i++) buf.bits.push(segment.bits[i]);
+
+    buf.append(0, Math.min(4, capacityBits - buf.length));
+    buf.append(0, (8 - buf.length % 8) % 8);
+    for (let pad = 0xEC; buf.length < capacityBits; pad ^= 0xEC ^ 0x11) buf.append(pad, 8);
+
+    const codewords = new Array(buf.length / 8).fill(0);
+    for (let i = 0; i < buf.bits.length; i++) codewords[i >>> 3] |= buf.bits[i] << (7 - (i & 7));
+
+    return QrCode._build(version, ecl, QrCode._interleave(codewords, version, ecl), forcedMask);
+  }
+
+  static _interleave(data, version, ecl) {
+    const numBlocks = NUM_BLOCKS[ecl][version - 1];
+    const eccLen = ECC_PER_BLOCK[ecl][version - 1];
+    const rawCodewords = Math.floor(rawDataModules(version) / 8);
+    const shortLen = Math.floor(rawCodewords / numBlocks) - eccLen;
+    const numShort = numBlocks - rawCodewords % numBlocks;
+
+    const dataBlocks = [];
+    const eccBlocks = [];
+    for (let i = 0, k = 0; i < numBlocks; i++) {
+      const len = shortLen + (i < numShort ? 0 : 1);
+      const block = data.slice(k, k + len);
+      k += len;
+      dataBlocks.push(block);
+      eccBlocks.push(rsRemainder(block, eccLen));
+    }
+
+    const result = [];
+    for (let i = 0; i < shortLen + 1; i++) {
+      for (let b = 0; b < dataBlocks.length; b++) {
+        if (i < dataBlocks[b].length) result.push(dataBlocks[b][i]);
+      }
+    }
+    for (let i = 0; i < eccLen; i++) {
+      for (let b = 0; b < eccBlocks.length; b++) result.push(eccBlocks[b][i]);
+    }
+    return result;
+  }
+
+  static _build(version, ecl, codewords, forcedMask) {
+    const size = version * 4 + 17;
+    const modules = [];
+    const reserved = [];
+    for (let y = 0; y < size; y++) {
+      modules.push(new Array(size).fill(false));
+      reserved.push(new Array(size).fill(false));
+    }
+    const setFn = (x, y, dark) => {
+      if (x < 0 || y < 0 || x >= size || y >= size) return;
+      modules[y][x] = dark;
+      reserved[y][x] = true;
+    };
+
+    for (let i = 0; i < size; i++) {
+      setFn(6, i, i % 2 === 0);
+      setFn(i, 6, i % 2 === 0);
+    }
+
+    const finders = [[0, 0], [size - 7, 0], [0, size - 7]];
+    for (let f = 0; f < finders.length; f++) {
+      for (let dy = -1; dy <= 7; dy++) {
+        for (let dx = -1; dx <= 7; dx++) {
+          const inner = Math.max(Math.abs(dx - 3), Math.abs(dy - 3));
+          setFn(finders[f][0] + dx, finders[f][1] + dy, inner !== 2 && inner <= 3);
+        }
+      }
+    }
+
+    const positions = QrCode._alignmentPositions(version);
+    for (let a = 0; a < positions.length; a++) {
+      for (let b = 0; b < positions.length; b++) {
+        const corner =
+          (a === 0 && b === 0) ||
+          (a === 0 && b === positions.length - 1) ||
+          (a === positions.length - 1 && b === 0);
+        if (corner) continue;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            setFn(positions[a] + dx, positions[b] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+          }
+        }
+      }
+    }
+
+    for (let i = 0; i < 9; i++) {
+      if (i === 6) continue; // timing modules already placed
+      setFn(i, 8, false);
+      setFn(8, i, false);
+    }
+    for (let i = 0; i < 8; i++) {
+      setFn(size - 1 - i, 8, false);
+      setFn(8, size - 1 - i, false);
+    }
+    setFn(8, size - 8, true);
+
+    if (version >= 7) {
+      let rem = version;
+      for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+      const bits = (version << 12) | rem;
+      for (let i = 0; i < 18; i++) {
+        const dark = ((bits >>> i) & 1) !== 0;
+        const a = size - 11 + i % 3;
+        const b = Math.floor(i / 3);
+        setFn(a, b, dark);
+        setFn(b, a, dark);
+      }
+    }
+
+    let bitIndex = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) {
+        for (let j = 0; j < 2; j++) {
+          const x = right - j;
+          const upward = ((right + 1) & 2) === 0;
+          const y = upward ? size - 1 - vert : vert;
+          if (reserved[y][x]) continue;
+          let dark = false;
+          if (bitIndex < codewords.length * 8) {
+            dark = ((codewords[bitIndex >>> 3] >>> (7 - (bitIndex & 7))) & 1) !== 0;
+            bitIndex++;
+          }
+          modules[y][x] = dark;
+        }
+      }
+    }
+
+    let bestMask = forcedMask;
+    if (bestMask === undefined || bestMask === null) {
+      let bestPenalty = Infinity;
+      for (let m = 0; m < 8; m++) {
+        const trial = QrCode._applyMask(modules, reserved, m, size);
+        QrCode._drawFormat(trial, ecl, m, size);
+        const penalty = QrCode._penalty(trial, size);
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          bestMask = m;
+        }
+      }
+    }
+    const masked = QrCode._applyMask(modules, reserved, bestMask, size);
+    QrCode._drawFormat(masked, ecl, bestMask, size);
+    return new QrCode(version, ecl, bestMask, masked);
+  }
+
+  static _alignmentPositions(version) {
+    if (version === 1) return [];
+    const count = Math.floor(version / 7) + 2;
+    const size = version * 4 + 17;
+    const step = version === 32 ? 26 : Math.ceil((size - 13) / (count * 2 - 2)) * 2;
+    const result = [6];
+    for (let pos = size - 7; result.length < count; pos -= step) result.splice(1, 0, pos);
+    return result;
+  }
+
+  static _maskBit(mask, x, y) {
+    switch (mask) {
+      case 0: return (x + y) % 2 === 0;
+      case 1: return y % 2 === 0;
+      case 2: return x % 3 === 0;
+      case 3: return (x + y) % 3 === 0;
+      case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+      case 5: return x * y % 2 + x * y % 3 === 0;
+      case 6: return (x * y % 2 + x * y % 3) % 2 === 0;
+      default: return ((x + y) % 2 + x * y % 3) % 2 === 0;
+    }
+  }
+
+  static _applyMask(modules, reserved, mask, size) {
+    const out = [];
+    for (let y = 0; y < size; y++) {
+      const row = new Array(size);
+      for (let x = 0; x < size; x++) {
+        row[x] = reserved[y][x] ? modules[y][x] : (modules[y][x] !== QrCode._maskBit(mask, x, y));
+      }
+      out.push(row);
+    }
+    return out;
+  }
+
+  static _drawFormat(modules, ecl, mask, size) {
+    const data = (FORMAT_BITS[ecl] << 3) | mask;
+    let rem = data;
+    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    const bits = ((data << 10) | rem) ^ 0x5412;
+
+    for (let i = 0; i <= 5; i++) modules[i][8] = ((bits >>> i) & 1) !== 0;
+    modules[7][8] = ((bits >>> 6) & 1) !== 0;
+    modules[8][8] = ((bits >>> 7) & 1) !== 0;
+    modules[8][7] = ((bits >>> 8) & 1) !== 0;
+    for (let i = 9; i < 15; i++) modules[8][14 - i] = ((bits >>> i) & 1) !== 0;
+
+    for (let i = 0; i < 8; i++) modules[8][size - 1 - i] = ((bits >>> i) & 1) !== 0;
+    for (let i = 8; i < 15; i++) modules[size - 15 + i][8] = ((bits >>> i) & 1) !== 0;
+    modules[size - 8][8] = true;
+  }
+
+  static _penalty(m, size) {
+    const N1 = 3, N2 = 3, N3 = 40, N4 = 10;
+    let penalty = 0;
+
+    for (let y = 0; y < size; y++) {
+      let color = m[y][0], run = 1;
+      for (let x = 1; x < size; x++) {
+        if (m[y][x] === color) {
+          run++;
+          if (run === 5) penalty += N1; else if (run > 5) penalty++;
+        } else { color = m[y][x]; run = 1; }
+      }
+    }
+    for (let x = 0; x < size; x++) {
+      let color = m[0][x], run = 1;
+      for (let y = 1; y < size; y++) {
+        if (m[y][x] === color) {
+          run++;
+          if (run === 5) penalty += N1; else if (run > 5) penalty++;
+        } else { color = m[y][x]; run = 1; }
+      }
+    }
+    for (let y = 0; y < size - 1; y++) {
+      for (let x = 0; x < size - 1; x++) {
+        const c = m[y][x];
+        if (c === m[y][x + 1] && c === m[y + 1][x] && c === m[y + 1][x + 1]) penalty += N2;
+      }
+    }
+    const patA = [true, false, true, true, true, false, true, false, false, false, false];
+    const patB = [false, false, false, false, true, false, true, true, true, false, true];
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x <= size - 11; x++) {
+        let okA = true, okB = true;
+        for (let i = 0; i < 11; i++) {
+          if (m[y][x + i] !== patA[i]) okA = false;
+          if (m[y][x + i] !== patB[i]) okB = false;
+        }
+        if (okA) penalty += N3;
+        if (okB) penalty += N3;
+      }
+    }
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y <= size - 11; y++) {
+        let okA = true, okB = true;
+        for (let i = 0; i < 11; i++) {
+          if (m[y + i][x] !== patA[i]) okA = false;
+          if (m[y + i][x] !== patB[i]) okB = false;
+        }
+        if (okA) penalty += N3;
+        if (okB) penalty += N3;
+      }
+    }
+    let dark = 0;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) if (m[y][x]) dark++;
+    }
+    penalty += Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * N4;
+    return penalty;
+  }
+}
+
+/* ==================================================================
+ * 2b. DECODING — camera frame to text. Reed-Solomon repair, QR image
+ *     decoding and linear (EAN/UPC) decoding, all written here because
+ *     no browser engine on iOS ships a barcode API.
+ * ================================================================== */
+
+function gfDiv(a, b) {
+  if (b === 0) throw new Error('divide by zero');
+  if (a === 0) return 0;
+  return GF_EXP[(GF_LOG[a] + 255 - GF_LOG[b]) % 255];
+}
+function gfPow(a, n) {
+  let e = (GF_LOG[a] * n) % 255;
+  if (e < 0) e += 255;
+  return GF_EXP[e];
+}
+
+/* Polynomials are arrays indexed by degree: p[0] is the constant term. */
+function polyEval(p, x) {
+  let sum = 0;
+  for (let i = p.length - 1; i >= 0; i--) sum = gfMul(sum, x) ^ p[i];
+  return sum;
+}
+function polyMul(a, b) {
+  const out = new Array(a.length + b.length - 1).fill(0);
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === 0) continue;
+    for (let j = 0; j < b.length; j++) {
+      if (b[j] === 0) continue;
+      out[i + j] ^= gfMul(a[i], b[j]);
+    }
+  }
+  return out;
+}
+
+class ReedSolomon {
+  /**
+   * @param codewords Uint8Array/Array, data followed by ecc, most significant first
+   * @param eccCount  number of error-correction codewords
+   * @returns corrected data codewords, or null if beyond repair
+   */
+  static decode(codewords, eccCount) {
+    const n = codewords.length;
+
+    // Degree-indexed view: r[k] is the coefficient of x^k.
+    const r = new Array(n);
+    for (let i = 0; i < n; i++) r[n - 1 - i] = codewords[i];
+
+    // Syndromes S_j = R(alpha^j), j = 0 .. eccCount-1 (generator roots start at alpha^0).
+    const syndromes = new Array(eccCount).fill(0);
+    let clean = true;
+    for (let j = 0; j < eccCount; j++) {
+      syndromes[j] = polyEval(r, GF_EXP[j]);
+      if (syndromes[j] !== 0) clean = false;
+    }
+    if (clean) return ReedSolomon._dataOf(codewords, eccCount);
+
+    const sigma = ReedSolomon._berlekampMassey(syndromes, eccCount);
+    if (sigma === null) return null;
+
+    const positions = ReedSolomon._chien(sigma, n);
+    if (positions === null || positions.length === 0) return null;
+    if (positions.length > Math.floor(eccCount / 2)) return null;
+
+    // omega(x) = S(x) * sigma(x) mod x^eccCount
+    const omega = polyMul(syndromes, sigma).slice(0, eccCount);
+
+    // Forney: derivative of sigma keeps only odd-degree terms.
+    const derivative = [];
+    for (let i = 1; i < sigma.length; i += 2) derivative.push(sigma[i]);
+
+    for (let i = 0; i < positions.length; i++) {
+      const k = positions[i];                 // error at coefficient of x^k
+      const xInv = GF_EXP[(255 - k % 255) % 255];
+      const denom = polyEval(derivative, gfMul(xInv, xInv));
+      if (denom === 0) return null;
+      const magnitude = gfMul(GF_EXP[k % 255], gfDiv(polyEval(omega, xInv), denom));
+      r[k] ^= magnitude;
+    }
+
+    // Back to codeword order and verify the correction actually worked.
+    const fixed = new Array(n);
+    for (let i = 0; i < n; i++) fixed[i] = r[n - 1 - i];
+    for (let j = 0; j < eccCount; j++) {
+      if (polyEval(r, GF_EXP[j]) !== 0) return null;
+    }
+    return ReedSolomon._dataOf(fixed, eccCount);
+  }
+
+  static _dataOf(codewords, eccCount) {
+    const out = new Array(codewords.length - eccCount);
+    for (let i = 0; i < out.length; i++) out[i] = codewords[i];
+    return out;
+  }
+
+  static _berlekampMassey(syndromes, eccCount) {
+    let sigma = [1];
+    let previous = [1];
+    let shift = 1;
+    let lastDiscrepancy = 1;
+
+    for (let i = 0; i < eccCount; i++) {
+      let discrepancy = syndromes[i];
+      for (let j = 1; j < sigma.length; j++) {
+        discrepancy ^= gfMul(sigma[j], syndromes[i - j]);
+      }
+
+      if (discrepancy === 0) {
+        shift++;
+        continue;
+      }
+
+      const scale = gfDiv(discrepancy, lastDiscrepancy);
+      const shifted = new Array(shift + previous.length).fill(0);
+      for (let j = 0; j < previous.length; j++) shifted[shift + j] = gfMul(previous[j], scale);
+
+      const updated = sigma.slice();
+      while (updated.length < shifted.length) updated.push(0);
+      for (let j = 0; j < shifted.length; j++) updated[j] ^= shifted[j];
+
+      if (2 * (sigma.length - 1) <= i) {
+        previous = sigma;
+        lastDiscrepancy = discrepancy;
+        shift = 1;
+      } else {
+        shift++;
+      }
+      sigma = updated;
+    }
+
+    while (sigma.length > 1 && sigma[sigma.length - 1] === 0) sigma.pop();
+    if (sigma.length - 1 > Math.floor(eccCount / 2)) return null;
+    return sigma;
+  }
+
+  static _chien(sigma, n) {
+    const positions = [];
+    for (let k = 0; k < n; k++) {
+      const xInv = GF_EXP[(255 - k % 255) % 255];
+      if (polyEval(sigma, xInv) === 0) positions.push(k);
+    }
+    if (positions.length !== sigma.length - 1) return null; // roots must all be findable
+    return positions;
+  }
+}
+
+
+const LEVELS_BY_BITS = { 0: 'M', 1: 'L', 2: 'H', 3: 'Q' };
+
+/* ------------------------------------------------------------------ */
+
+class BitMatrix {
+  constructor(width, height) {
+    this.width = width;
+    this.height = height;
+    this.bits = new Uint8Array(width * height);
+  }
+  get(x, y) {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return 0;
+    return this.bits[y * this.width + x];
+  }
+  set(x, y, value) { this.bits[y * this.width + x] = value ? 1 : 0; }
+}
+
+/** Block-based adaptive threshold: copes with uneven lighting on a phone. */
+class Binarizer {
+  static toLuminance(imageData) {
+    const { data, width, height } = imageData;
+    const gray = new Uint8ClampedArray(width * height);
+    for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
+      gray[i] = (data[p] * 306 + data[p + 1] * 601 + data[p + 2] * 117) >> 10;
+    }
+    return { gray, width, height };
+  }
+
+  static binarize(imageData) {
+    const { gray, width, height } = Binarizer.toLuminance(imageData);
+    const BLOCK = 8;
+    const blocksX = Math.max(1, Math.ceil(width / BLOCK));
+    const blocksY = Math.max(1, Math.ceil(height / BLOCK));
+    const blackPoints = new Float32Array(blocksX * blocksY);
+
+    /*
+     * Per-block black point. A block with real contrast uses its own mean.
+     * A flat block sits inside a single module, so its mean says nothing
+     * about where dark ends and light begins — it borrows from neighbours
+     * instead, otherwise every large dark module reads as light.
+     */
+    for (let by = 0; by < blocksY; by++) {
+      for (let bx = 0; bx < blocksX; bx++) {
+        let sum = 0, count = 0, min = 255, max = 0;
+        const yEnd = Math.min(height, (by + 1) * BLOCK);
+        const xEnd = Math.min(width, (bx + 1) * BLOCK);
+        for (let y = by * BLOCK; y < yEnd; y++) {
+          for (let x = bx * BLOCK; x < xEnd; x++) {
+            const v = gray[y * width + x];
+            sum += v; count++;
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+        }
+        let point;
+        if (max - min > 24) {
+          point = sum / count;
+        } else {
+          point = min / 2;
+          if (by > 0 && bx > 0) {
+            const neighbours = (blackPoints[(by - 1) * blocksX + bx] +
+                                2 * blackPoints[by * blocksX + bx - 1] +
+                                blackPoints[(by - 1) * blocksX + bx - 1]) / 4;
+            if (min < neighbours) point = neighbours;
+          }
+        }
+        blackPoints[by * blocksX + bx] = point;
+      }
+    }
+
+    const matrix = new BitMatrix(width, height);
+    for (let by = 0; by < blocksY; by++) {
+      const yEnd = Math.min(height, (by + 1) * BLOCK);
+      for (let bx = 0; bx < blocksX; bx++) {
+        const xEnd = Math.min(width, (bx + 1) * BLOCK);
+
+        let sum = 0, count = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = bx + dx, ny = by + dy;
+            if (nx < 0 || ny < 0 || nx >= blocksX || ny >= blocksY) continue;
+            sum += blackPoints[ny * blocksX + nx];
+            count++;
+          }
+        }
+        const threshold = sum / count;
+        for (let y = by * BLOCK; y < yEnd; y++) {
+          for (let x = bx * BLOCK; x < xEnd; x++) {
+            matrix.set(x, y, gray[y * width + x] <= threshold ? 1 : 0);
+          }
+        }
+      }
+    }
+    return matrix;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+
+class FinderPattern {
+  constructor(x, y, moduleSize) {
+    this.x = x;
+    this.y = y;
+    this.moduleSize = moduleSize;
+    this.count = 1;
+  }
+}
+
+class FinderLocator {
+  static locate(matrix) {
+    const candidates = [];
+    const counts = [0, 0, 0, 0, 0];
+    const skip = Math.max(1, Math.floor(matrix.height / 240));
+
+    for (let y = 0; y < matrix.height; y += skip) {
+      counts[0] = counts[1] = counts[2] = counts[3] = counts[4] = 0;
+      let state = 0;
+      for (let x = 0; x < matrix.width; x++) {
+        if (matrix.get(x, y) === 1) {
+          if (state % 2 === 1) state++;
+          counts[state]++;
+        } else {
+          if (state % 2 === 0) {
+            if (state === 4) {
+              if (FinderLocator._ratioOk(counts)) {
+                FinderLocator._consider(matrix, candidates, counts, x, y);
+                counts[0] = counts[2]; counts[1] = counts[3]; counts[2] = counts[4];
+                counts[3] = 1; counts[4] = 0;
+                state = 3;
+              } else {
+                counts[0] = counts[2]; counts[1] = counts[3]; counts[2] = counts[4];
+                counts[3] = 1; counts[4] = 0;
+                state = 3;
+              }
+            } else {
+              state++;
+              counts[state]++;
+            }
+          } else {
+            counts[state]++;
+          }
+        }
+      }
+      if (state === 4 && FinderLocator._ratioOk(counts)) {
+        FinderLocator._consider(matrix, candidates, counts, matrix.width, y);
+      }
+    }
+
+    const strong = [];
+    for (let i = 0; i < candidates.length; i++) {
+      if (candidates[i].count >= 2) strong.push(candidates[i]);
+    }
+    const pool = strong.length >= 3 ? strong : candidates;
+    if (pool.length < 3) return null;
+
+    pool.sort((a, b) => b.count - a.count);
+    return FinderLocator._order(pool.slice(0, 3));
+  }
+
+  static _ratioOk(counts) {
+    let total = 0;
+    for (let i = 0; i < 5; i++) {
+      if (counts[i] === 0) return false;
+      total += counts[i];
+    }
+    if (total < 7) return false;
+    const unit = total / 7;
+    const slack = unit / 2;
+    return Math.abs(unit - counts[0]) < slack &&
+           Math.abs(unit - counts[1]) < slack &&
+           Math.abs(3 * unit - counts[2]) < 3 * slack &&
+           Math.abs(unit - counts[3]) < slack &&
+           Math.abs(unit - counts[4]) < slack;
+  }
+
+  static _centerFromEnd(counts, end) {
+    return end - counts[4] - counts[3] - counts[2] / 2;
+  }
+
+  static _consider(matrix, candidates, counts, endX, y) {
+    let total = 0;
+    for (let i = 0; i < 5; i++) total += counts[i];
+    const centerX = FinderLocator._centerFromEnd(counts, endX);
+
+    const centerY = FinderLocator._crossCheckVertical(matrix, Math.floor(centerX), y, counts[2], total);
+    if (centerY === null) return;
+    const refinedX = FinderLocator._crossCheckHorizontal(matrix, Math.floor(centerX), Math.floor(centerY), counts[2], total);
+    if (refinedX === null) return;
+
+    const moduleSize = total / 7;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (Math.abs(c.x - refinedX) <= moduleSize && Math.abs(c.y - centerY) <= moduleSize) {
+        c.x = (c.x * c.count + refinedX) / (c.count + 1);
+        c.y = (c.y * c.count + centerY) / (c.count + 1);
+        c.moduleSize = (c.moduleSize * c.count + moduleSize) / (c.count + 1);
+        c.count++;
+        return;
+      }
+    }
+    candidates.push(new FinderPattern(refinedX, centerY, moduleSize));
+  }
+
+  static _crossCheckVertical(matrix, centerX, centerY, maxCount, originalTotal) {
+    const counts = [0, 0, 0, 0, 0];
+    let y = centerY;
+    while (y >= 0 && matrix.get(centerX, y) === 1) { counts[2]++; y--; }
+    if (y < 0) return null;
+    while (y >= 0 && matrix.get(centerX, y) === 0 && counts[1] <= maxCount) { counts[1]++; y--; }
+    if (y < 0 || counts[1] > maxCount) return null;
+    while (y >= 0 && matrix.get(centerX, y) === 1 && counts[0] <= maxCount) { counts[0]++; y--; }
+    if (counts[0] > maxCount) return null;
+
+    y = centerY + 1;
+    while (y < matrix.height && matrix.get(centerX, y) === 1) { counts[2]++; y++; }
+    if (y === matrix.height) return null;
+    while (y < matrix.height && matrix.get(centerX, y) === 0 && counts[3] < maxCount) { counts[3]++; y++; }
+    if (y === matrix.height || counts[3] >= maxCount) return null;
+    while (y < matrix.height && matrix.get(centerX, y) === 1 && counts[4] < maxCount) { counts[4]++; y++; }
+    if (counts[4] >= maxCount) return null;
+
+    let total = 0;
+    for (let i = 0; i < 5; i++) total += counts[i];
+    if (5 * Math.abs(total - originalTotal) >= 2 * originalTotal) return null;
+    if (!FinderLocator._ratioOk(counts)) return null;
+    return FinderLocator._centerFromEnd(counts, y);
+  }
+
+  static _crossCheckHorizontal(matrix, centerX, centerY, maxCount, originalTotal) {
+    const counts = [0, 0, 0, 0, 0];
+    let x = centerX;
+    while (x >= 0 && matrix.get(x, centerY) === 1) { counts[2]++; x--; }
+    if (x < 0) return null;
+    while (x >= 0 && matrix.get(x, centerY) === 0 && counts[1] <= maxCount) { counts[1]++; x--; }
+    if (x < 0 || counts[1] > maxCount) return null;
+    while (x >= 0 && matrix.get(x, centerY) === 1 && counts[0] <= maxCount) { counts[0]++; x--; }
+    if (counts[0] > maxCount) return null;
+
+    x = centerX + 1;
+    while (x < matrix.width && matrix.get(x, centerY) === 1) { counts[2]++; x++; }
+    if (x === matrix.width) return null;
+    while (x < matrix.width && matrix.get(x, centerY) === 0 && counts[3] < maxCount) { counts[3]++; x++; }
+    if (x === matrix.width || counts[3] >= maxCount) return null;
+    while (x < matrix.width && matrix.get(x, centerY) === 1 && counts[4] < maxCount) { counts[4]++; x++; }
+    if (counts[4] >= maxCount) return null;
+
+    let total = 0;
+    for (let i = 0; i < 5; i++) total += counts[i];
+    if (5 * Math.abs(total - originalTotal) >= originalTotal) return null;
+    if (!FinderLocator._ratioOk(counts)) return null;
+    return FinderLocator._centerFromEnd(counts, x);
+  }
+
+  /** The corner is the one opposite the longest side; orientation from the cross product. */
+  static _order(points) {
+    const d = (a, b) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+    const dAB = d(points[0], points[1]);
+    const dAC = d(points[0], points[2]);
+    const dBC = d(points[1], points[2]);
+
+    let topLeft, p1, p2;
+    if (dBC >= dAB && dBC >= dAC) { topLeft = points[0]; p1 = points[1]; p2 = points[2]; }
+    else if (dAC >= dAB && dAC >= dBC) { topLeft = points[1]; p1 = points[0]; p2 = points[2]; }
+    else { topLeft = points[2]; p1 = points[0]; p2 = points[1]; }
+
+    const cross = (p1.x - topLeft.x) * (p2.y - topLeft.y) - (p1.y - topLeft.y) * (p2.x - topLeft.x);
+    const topRight = cross > 0 ? p1 : p2;
+    const bottomLeft = cross > 0 ? p2 : p1;
+    return { topLeft, topRight, bottomLeft };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+
+class PerspectiveTransform {
+  constructor(m) { this.m = m; }
+
+  apply(x, y) {
+    const m = this.m;
+    const denom = m[2] * x + m[5] * y + m[8];
+    return {
+      x: (m[0] * x + m[3] * y + m[6]) / denom,
+      y: (m[1] * x + m[4] * y + m[7]) / denom
+    };
+  }
+
+  static squareTo(q) {
+    const dx3 = q[0].x - q[1].x + q[2].x - q[3].x;
+    const dy3 = q[0].y - q[1].y + q[2].y - q[3].y;
+    if (dx3 === 0 && dy3 === 0) {
+      return new PerspectiveTransform([
+        q[1].x - q[0].x, q[1].y - q[0].y, 0,
+        q[2].x - q[1].x, q[2].y - q[1].y, 0,
+        q[0].x, q[0].y, 1
+      ]);
+    }
+    const dx1 = q[1].x - q[2].x, dx2 = q[3].x - q[2].x;
+    const dy1 = q[1].y - q[2].y, dy2 = q[3].y - q[2].y;
+    const denominator = dx1 * dy2 - dx2 * dy1;
+    const a13 = (dx3 * dy2 - dx2 * dy3) / denominator;
+    const a23 = (dx1 * dy3 - dx3 * dy1) / denominator;
+    return new PerspectiveTransform([
+      q[1].x - q[0].x + a13 * q[1].x, q[1].y - q[0].y + a13 * q[1].y, a13,
+      q[3].x - q[0].x + a23 * q[3].x, q[3].y - q[0].y + a23 * q[3].y, a23,
+      q[0].x, q[0].y, 1
+    ]);
+  }
+
+  static _times(a, b) {
+    const p = a.m, q = b.m;
+    return new PerspectiveTransform([
+      p[0]*q[0] + p[3]*q[1] + p[6]*q[2], p[1]*q[0] + p[4]*q[1] + p[7]*q[2], p[2]*q[0] + p[5]*q[1] + p[8]*q[2],
+      p[0]*q[3] + p[3]*q[4] + p[6]*q[5], p[1]*q[3] + p[4]*q[4] + p[7]*q[5], p[2]*q[3] + p[5]*q[4] + p[8]*q[5],
+      p[0]*q[6] + p[3]*q[7] + p[6]*q[8], p[1]*q[6] + p[4]*q[7] + p[7]*q[8], p[2]*q[6] + p[5]*q[7] + p[8]*q[8]
+    ]);
+  }
+
+  static _adjoint(t) {
+    const m = t.m;
+    return new PerspectiveTransform([
+      m[4]*m[8] - m[5]*m[7], m[2]*m[7] - m[1]*m[8], m[1]*m[5] - m[2]*m[4],
+      m[5]*m[6] - m[3]*m[8], m[0]*m[8] - m[2]*m[6], m[2]*m[3] - m[0]*m[5],
+      m[3]*m[7] - m[4]*m[6], m[1]*m[6] - m[0]*m[7], m[0]*m[4] - m[1]*m[3]
+    ]);
+  }
+
+  /** Maps the quadrilateral `src` (module space) onto `dst` (image space). */
+  static quadToQuad(src, dst) {
+    const toSquare = PerspectiveTransform._adjoint(PerspectiveTransform.squareTo(src));
+    return PerspectiveTransform._times(PerspectiveTransform.squareTo(dst), toSquare);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+
+class QrImageDecoder {
+  /** @param imageData {data, width, height} — an ImageData or equivalent. */
+  static decode(imageData) {
+    const matrix = Binarizer.binarize(imageData);
+    return QrImageDecoder.decodeMatrix(matrix);
+  }
+
+  static decodeMatrix(matrix) {
+    const finders = FinderLocator.locate(matrix);
+    if (finders === null) return null;
+
+    const { topLeft, topRight, bottomLeft } = finders;
+    const alongTop = QrImageDecoder._moduleSizeBetween(matrix, topLeft, topRight);
+    const alongSide = QrImageDecoder._moduleSizeBetween(matrix, topLeft, bottomLeft);
+    let moduleSize = (alongTop + alongSide) / 2;
+    if (!isFinite(moduleSize) || moduleSize < 1) {
+      moduleSize = (topLeft.moduleSize + topRight.moduleSize + bottomLeft.moduleSize) / 3;
+    }
+    if (!isFinite(moduleSize) || moduleSize < 1) return null;
+
+    const dimension = QrImageDecoder._dimension(topLeft, topRight, bottomLeft, moduleSize);
+    if (dimension === null) return null;
+
+    const version = (dimension - 17) / 4;
+    if (version < 1 || version > 40 || !Number.isInteger(version)) return null;
+
+    let alignment = null;
+    if (version >= 2) {
+      alignment = QrImageDecoder._findAlignment(matrix, topLeft, topRight, bottomLeft, dimension, moduleSize);
+    }
+
+    /*
+     * The alignment pattern gives a true perspective fit, but a misdetected
+     * one is worse than none, so fall back to the three-finder estimate if
+     * it does not decode. Each attempt is also tried transposed, which
+     * covers a code seen mirrored.
+     */
+    const attempts = alignment !== null ? [alignment, null] : [null];
+    for (let a = 0; a < attempts.length; a++) {
+      const sampled = QrImageDecoder._sample(matrix, topLeft, topRight, bottomLeft, attempts[a], dimension);
+      if (sampled === null) continue;
+
+      const direct = QrImageDecoder.readMatrix(sampled, dimension);
+      if (direct !== null) return direct;
+
+      const mirrored = new BitMatrix(dimension, dimension);
+      for (let y = 0; y < dimension; y++) {
+        for (let x = 0; x < dimension; x++) mirrored.set(y, x, sampled.get(x, y));
+      }
+      const flipped = QrImageDecoder.readMatrix(mirrored, dimension);
+      if (flipped !== null) return flipped;
+    }
+    return null;
+  }
+
+  static _dimension(topLeft, topRight, bottomLeft, moduleSize) {
+    const dist = (a, b) => Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+    const widthModules = dist(topLeft, topRight) / moduleSize;
+    const heightModules = dist(topLeft, bottomLeft) / moduleSize;
+    let dimension = Math.round((widthModules + heightModules) / 2) + 7;
+    switch (dimension & 0x03) {
+      case 0: dimension++; break;
+      case 2: dimension--; break;
+      case 3: return null;
+      default: break;
+    }
+    if (dimension < 21 || dimension > 177) return null;
+    return dimension;
+  }
+
+  static _findAlignment(matrix, topLeft, topRight, bottomLeft, dimension, moduleSize) {
+    const correction = 1 - 3 / (dimension - 7);
+    const bottomRightX = topRight.x - topLeft.x + bottomLeft.x;
+    const bottomRightY = topRight.y - topLeft.y + bottomLeft.y;
+    const estimateX = topLeft.x + correction * (bottomRightX - topLeft.x);
+    const estimateY = topLeft.y + correction * (bottomRightY - topLeft.y);
+
+    for (let factor = 4; factor <= 16; factor <<= 1) {
+      const found = QrImageDecoder._searchAlignment(
+        matrix, estimateX, estimateY, moduleSize, factor * moduleSize);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
+  /**
+   * A cut through an alignment pattern's centre reads dark-light-dark, each
+   * one module wide. Scan the window for that, then confirm vertically.
+   */
+  static _searchAlignment(matrix, centerX, centerY, moduleSize, radius) {
+    const left = Math.max(0, Math.floor(centerX - radius));
+    const right = Math.min(matrix.width - 1, Math.ceil(centerX + radius));
+    const top = Math.max(0, Math.floor(centerY - radius));
+    const bottom = Math.min(matrix.height - 1, Math.ceil(centerY + radius));
+    if (right - left < moduleSize * 3) return null;
+
+    const tolerance = moduleSize / 2;
+    const fits = (counts) => {
+      for (let i = 0; i < 3; i++) {
+        if (Math.abs(counts[i] - moduleSize) > tolerance) return false;
+      }
+      return true;
+    };
+
+    let best = null;
+    let bestDistance = Infinity;
+
+    for (let y = top; y <= bottom; y++) {
+      const counts = [0, 0, 0];
+      let state = 0;
+      let x = left;
+      while (x <= right && matrix.get(x, y) === 0) x++;   // burn off leading light
+
+      for (; x <= right; x++) {
+        const dark = matrix.get(x, y) === 1;
+        if (state === 0) {
+          if (dark) counts[0]++;
+          else { state = 1; counts[1] = 1; }
+        } else if (state === 1) {
+          if (!dark) counts[1]++;
+          else { state = 2; counts[2] = 1; }
+        } else {
+          if (dark) counts[2]++;
+          else {
+            if (fits(counts)) {
+              const cx = x - counts[2] - counts[1] / 2;
+              const cy = QrImageDecoder._alignmentCrossCheck(matrix, Math.round(cx), y, moduleSize);
+              if (cy !== null) {
+                const distance = (cx - centerX) * (cx - centerX) + (cy - centerY) * (cy - centerY);
+                if (distance < bestDistance) {
+                  bestDistance = distance;
+                  best = { x: cx, y: cy, moduleSize: (counts[0] + counts[1] + counts[2]) / 3 };
+                }
+              }
+            }
+            counts[0] = counts[2];
+            counts[1] = 1;
+            counts[2] = 0;
+            state = 1;
+          }
+        }
+      }
+      if (state === 2 && fits(counts)) {
+        const cx = right + 1 - counts[2] - counts[1] / 2;
+        const cy = QrImageDecoder._alignmentCrossCheck(matrix, Math.round(cx), y, moduleSize);
+        if (cy !== null) {
+          const distance = (cx - centerX) * (cx - centerX) + (cy - centerY) * (cy - centerY);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = { x: cx, y: cy, moduleSize: (counts[0] + counts[1] + counts[2]) / 3 };
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Module size measured along the line joining two finder centres. Taking
+   * it from horizontal run widths instead would inflate it by up to √2 on a
+   * rotated code, and the dimension estimate would come out short.
+   */
+  static _runLength(matrix, fromX, fromY, toX, toY) {
+    const steep = Math.abs(toY - fromY) > Math.abs(toX - fromX);
+    if (steep) {
+      let t = fromX; fromX = fromY; fromY = t;
+      t = toX; toX = toY; toY = t;
+    }
+    const dx = Math.abs(toX - fromX);
+    const dy = Math.abs(toY - fromY);
+    let error = -dx / 2;
+    const xStep = fromX < toX ? 1 : -1;
+    const yStep = fromY < toY ? 1 : -1;
+    let state = 0;
+    const xLimit = toX + xStep;
+
+    for (let x = fromX, y = fromY; x !== xLimit; x += xStep) {
+      const realX = steep ? y : x;
+      const realY = steep ? x : y;
+      const dark = matrix.get(realX, realY) === 1;
+      if ((state === 1) === dark) {
+        if (state === 2) return Math.hypot(x - fromX, y - fromY);
+        state++;
+      }
+      error += dy;
+      if (error > 0) {
+        if (y === toY) break;
+        y += yStep;
+        error -= dx;
+      }
+    }
+    if (state === 2) return Math.hypot(toX + xStep - fromX, toY - fromY);
+    return NaN;
+  }
+
+  static _runBothWays(matrix, fromX, fromY, toX, toY) {
+    let result = QrImageDecoder._runLength(matrix, fromX, fromY, toX, toY);
+
+    let scale = 1;
+    let otherToX = fromX - (toX - fromX);
+    if (otherToX < 0) { scale = fromX / (fromX - otherToX); otherToX = 0; }
+    else if (otherToX >= matrix.width) { scale = (matrix.width - 1 - fromX) / (otherToX - fromX); otherToX = matrix.width - 1; }
+    let otherToY = Math.round(fromY - (toY - fromY) * scale);
+
+    scale = 1;
+    if (otherToY < 0) { scale = fromY / (fromY - otherToY); otherToY = 0; }
+    else if (otherToY >= matrix.height) { scale = (matrix.height - 1 - fromY) / (otherToY - fromY); otherToY = matrix.height - 1; }
+    otherToX = Math.round(fromX + (otherToX - fromX) * scale);
+
+    result += QrImageDecoder._runLength(matrix, fromX, fromY, otherToX, otherToY);
+    return result - 1;
+  }
+
+  static _moduleSizeBetween(matrix, a, b) {
+    const one = QrImageDecoder._runBothWays(matrix, Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y));
+    const two = QrImageDecoder._runBothWays(matrix, Math.round(b.x), Math.round(b.y), Math.round(a.x), Math.round(a.y));
+    if (isNaN(one)) return two / 7;
+    if (isNaN(two)) return one / 7;
+    return (one + two) / 14;
+  }
+
+  static _alignmentCrossCheck(matrix, x, y, moduleSize) {
+    if (x < 0 || x >= matrix.width || matrix.get(x, y) !== 1) return null;
+    let up = 0, down = 0;
+    let cy = y;
+    while (cy >= 0 && matrix.get(x, cy) === 1 && up <= moduleSize * 2) { up++; cy--; }
+    cy = y + 1;
+    while (cy < matrix.height && matrix.get(x, cy) === 1 && down <= moduleSize * 2) { down++; cy++; }
+    const height = up + down;
+    if (Math.abs(height - moduleSize) > moduleSize) return null;
+    return y - up + height / 2;
+  }
+
+  static _sample(matrix, topLeft, topRight, bottomLeft, alignment, dimension) {
+    const edge = dimension - 3.5;
+    let src, dst;
+    if (alignment !== null) {
+      src = [{ x: 3.5, y: 3.5 }, { x: edge, y: 3.5 }, { x: dimension - 6.5, y: dimension - 6.5 }, { x: 3.5, y: edge }];
+      dst = [topLeft, topRight, alignment, bottomLeft];
+    } else {
+      src = [{ x: 3.5, y: 3.5 }, { x: edge, y: 3.5 }, { x: edge, y: edge }, { x: 3.5, y: edge }];
+      dst = [topLeft, topRight,
+             { x: topRight.x - topLeft.x + bottomLeft.x, y: topRight.y - topLeft.y + bottomLeft.y },
+             bottomLeft];
+    }
+
+    const transform = PerspectiveTransform.quadToQuad(src, dst);
+    const out = new BitMatrix(dimension, dimension);
+    for (let y = 0; y < dimension; y++) {
+      for (let x = 0; x < dimension; x++) {
+        const p = transform.apply(x + 0.5, y + 0.5);
+        const px = Math.round(p.x);
+        const py = Math.round(p.y);
+        if (px < 0 || py < 0 || px >= matrix.width || py >= matrix.height) return null;
+        out.set(x, y, matrix.get(px, py));
+      }
+    }
+    return out;
+  }
+
+  /* ---- from a clean module matrix to text ---- */
+
+  static readMatrix(m, dimension) {
+    const version = (dimension - 17) / 4;
+    const format = QrImageDecoder._readFormat(m, dimension);
+    if (format === null) return null;
+
+    const reserved = QrImageDecoder._functionMap(version, dimension);
+    const codewords = QrImageDecoder._readCodewords(m, reserved, dimension, format.mask);
+    const data = QrImageDecoder._correct(codewords, version, format.level);
+    if (data === null) return null;
+    return QrImageDecoder._readBitstream(data, version);
+  }
+
+  static _formatCode(bits) {
+    let rem = bits;
+    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    return ((bits << 10) | rem) ^ 0x5412;
+  }
+
+  static _readFormat(m, dimension) {
+    let first = 0;
+    for (let i = 0; i <= 5; i++) first = (first << 1) | m.get(8, i);
+    first = (first << 1) | m.get(8, 7);
+    first = (first << 1) | m.get(8, 8);
+    first = (first << 1) | m.get(7, 8);
+    for (let i = 5; i >= 0; i--) first = (first << 1) | m.get(i, 8);
+
+    let second = 0;
+    for (let i = 0; i < 7; i++) second = (second << 1) | m.get(8, dimension - 1 - i);
+    for (let i = 7; i >= 0; i--) second = (second << 1) | m.get(dimension - 8 + i, 8);
+
+    // The 15 bits read above are in reverse order of the encoder's bit indices.
+    const candidates = [QrImageDecoder._reverse15(first), QrImageDecoder._reverse15(second)];
+    let best = null;
+    let bestDistance = 4;
+    for (let bits = 0; bits < 32; bits++) {
+      const code = QrImageDecoder._formatCode(bits);
+      for (let c = 0; c < candidates.length; c++) {
+        const distance = QrImageDecoder._hamming(code, candidates[c]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = bits;
+        }
+      }
+    }
+    if (best === null) return null;
+    return { level: LEVELS_BY_BITS[best >> 3], mask: best & 7 };
+  }
+
+  static _reverse15(value) {
+    let out = 0;
+    for (let i = 0; i < 15; i++) out |= ((value >> i) & 1) << (14 - i);
+    return out;
+  }
+
+  static _hamming(a, b) {
+    let x = (a ^ b) & 0x7fff;
+    let count = 0;
+    while (x !== 0) { count += x & 1; x >>= 1; }
+    return count;
+  }
+
+  /** Marks every module that carries function patterns rather than data. */
+  static _functionMap(version, size) {
+    const reserved = new BitMatrix(size, size);
+    const mark = (x, y) => {
+      if (x < 0 || y < 0 || x >= size || y >= size) return;
+      reserved.set(x, y, 1);
+    };
+
+    for (let i = 0; i < size; i++) { mark(6, i); mark(i, 6); }
+
+    const finders = [[0, 0], [size - 7, 0], [0, size - 7]];
+    for (let f = 0; f < finders.length; f++) {
+      for (let dy = -1; dy <= 7; dy++) {
+        for (let dx = -1; dx <= 7; dx++) mark(finders[f][0] + dx, finders[f][1] + dy);
+      }
+    }
+
+    const positions = QrCode._alignmentPositions(version);
+    for (let a = 0; a < positions.length; a++) {
+      for (let b = 0; b < positions.length; b++) {
+        const corner = (a === 0 && b === 0) ||
+                       (a === 0 && b === positions.length - 1) ||
+                       (a === positions.length - 1 && b === 0);
+        if (corner) continue;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) mark(positions[a] + dx, positions[b] + dy);
+        }
+      }
+    }
+
+    for (let i = 0; i < 9; i++) { mark(i, 8); mark(8, i); }
+    for (let i = 0; i < 8; i++) { mark(size - 1 - i, 8); mark(8, size - 1 - i); }
+
+    if (version >= 7) {
+      for (let i = 0; i < 18; i++) {
+        const a = size - 11 + i % 3;
+        const b = Math.floor(i / 3);
+        mark(a, b);
+        mark(b, a);
+      }
+    }
+    return reserved;
+  }
+
+  static _readCodewords(m, reserved, size, mask) {
+    const bits = [];
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) {
+        for (let j = 0; j < 2; j++) {
+          const x = right - j;
+          const upward = ((right + 1) & 2) === 0;
+          const y = upward ? size - 1 - vert : vert;
+          if (reserved.get(x, y) === 1) continue;
+          let bit = m.get(x, y);
+          if (QrCode._maskBit(mask, x, y)) bit ^= 1;
+          bits.push(bit);
+        }
+      }
+    }
+
+    const codewords = [];
+    for (let i = 0; i + 8 <= bits.length; i += 8) {
+      let byte = 0;
+      for (let j = 0; j < 8; j++) byte = (byte << 1) | bits[i + j];
+      codewords.push(byte);
+    }
+    return codewords;
+  }
+
+  static _rawDataModules(version) {
+    let result = (16 * version + 128) * version + 64;
+    if (version >= 2) {
+      const numAlign = Math.floor(version / 7) + 2;
+      result -= (25 * numAlign - 10) * numAlign - 55;
+      if (version >= 7) result -= 36;
+    }
+    return result;
+  }
+
+  /** Undo the block interleaving, then repair each block. */
+  static _correct(codewords, version, level) {
+    const numBlocks = NUM_BLOCKS[level][version - 1];
+    const eccLen = ECC_PER_BLOCK[level][version - 1];
+    const rawCodewords = Math.floor(QrImageDecoder._rawDataModules(version) / 8);
+    if (codewords.length < rawCodewords) return null;
+
+    const shortLen = Math.floor(rawCodewords / numBlocks) - eccLen;
+    const numShort = numBlocks - rawCodewords % numBlocks;
+
+    const blocks = [];
+    for (let i = 0; i < numBlocks; i++) blocks.push([]);
+
+    let index = 0;
+    for (let i = 0; i < shortLen + 1; i++) {
+      for (let b = 0; b < numBlocks; b++) {
+        const length = shortLen + (b < numShort ? 0 : 1);
+        if (i < length) blocks[b].push(codewords[index++]);
+      }
+    }
+    for (let i = 0; i < eccLen; i++) {
+      for (let b = 0; b < numBlocks; b++) blocks[b].push(codewords[index++]);
+    }
+
+    const out = [];
+    for (let b = 0; b < numBlocks; b++) {
+      const fixed = ReedSolomon.decode(blocks[b], eccLen);
+      if (fixed === null) return null;
+      for (let i = 0; i < fixed.length; i++) out.push(fixed[i]);
+    }
+    return out;
+  }
+
+  static _readBitstream(data, version) {
+    const bits = [];
+    for (let i = 0; i < data.length; i++) {
+      for (let j = 7; j >= 0; j--) bits.push((data[i] >> j) & 1);
+    }
+
+    let pos = 0;
+    const take = (count) => {
+      if (pos + count > bits.length) return null;
+      let value = 0;
+      for (let i = 0; i < count; i++) value = (value << 1) | bits[pos + i];
+      pos += count;
+      return value;
+    };
+    const group = version <= 9 ? 0 : (version <= 26 ? 1 : 2);
+    let text = '';
+
+    for (;;) {
+      const mode = take(4);
+      if (mode === null || mode === 0) break;
+
+      if (mode === 7) {                      // ECI: skip the designator, keep reading
+        const first = take(8);
+        if (first === null) return null;
+        if ((first & 0x80) === 0x80) take((first & 0x40) === 0x40 ? 16 : 8);
+        continue;
+      }
+
+      let count, segment = '';
+      if (mode === 1) {
+        count = take([10, 12, 14][group]);
+        if (count === null) return null;
+        for (let i = 0; i < count; ) {
+          const remaining = count - i;
+          const digits = Math.min(3, remaining);
+          const value = take(digits * 3 + 1);
+          if (value === null) return null;
+          segment += String(value).padStart(digits, '0');
+          i += digits;
+        }
+      } else if (mode === 2) {
+        count = take([9, 11, 13][group]);
+        if (count === null) return null;
+        let i = 0;
+        for (; i + 2 <= count; i += 2) {
+          const value = take(11);
+          if (value === null) return null;
+          segment += ALNUM_CHARS[Math.floor(value / 45)] + ALNUM_CHARS[value % 45];
+        }
+        if (i < count) {
+          const value = take(6);
+          if (value === null) return null;
+          segment += ALNUM_CHARS[value];
+        }
+      } else if (mode === 4) {
+        count = take([8, 16, 16][group]);
+        if (count === null) return null;
+        const bytes = [];
+        for (let i = 0; i < count; i++) {
+          const value = take(8);
+          if (value === null) return null;
+          bytes.push(value);
+        }
+        segment = QrImageDecoder._utf8(bytes);
+      } else {
+        return null;                          // kanji and the rest: not needed here
+      }
+      text += segment;
+    }
+    return text.length > 0 ? text : null;
+  }
+
+  static _utf8(bytes) {
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+    }
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+    return out;
+  }
+}
+
+
+const DIGIT_PATTERNS = [
+  [3, 2, 1, 1], [2, 2, 2, 1], [2, 1, 2, 2], [1, 4, 1, 1], [1, 1, 3, 2],
+  [1, 2, 3, 1], [1, 1, 1, 4], [1, 3, 1, 2], [1, 2, 1, 3], [3, 1, 1, 2]
+];
+
+/* L patterns followed by G patterns (each G is its L reversed). */
+const L_AND_G = (function build() {
+  const out = [];
+  for (let i = 0; i < DIGIT_PATTERNS.length; i++) out.push(DIGIT_PATTERNS[i]);
+  for (let i = 0; i < DIGIT_PATTERNS.length; i++) {
+    const reversed = [];
+    for (let j = DIGIT_PATTERNS[i].length - 1; j >= 0; j--) reversed.push(DIGIT_PATTERNS[i][j]);
+    out.push(reversed);
+  }
+  return out;
+})();
+
+const FIRST_DIGIT_PARITY = [0x00, 0x0B, 0x0D, 0x0E, 0x13, 0x19, 0x1C, 0x15, 0x16, 0x1A];
+const START_GUARD = [1, 1, 1];
+const MIDDLE_GUARD = [1, 1, 1, 1, 1];
+
+const MAX_AVG_VARIANCE = 0.48;
+const MAX_INDIVIDUAL_VARIANCE = 0.7;
+
+class PatternMatcher {
+  static variance(counters, pattern, maxIndividual) {
+    let total = 0, patternTotal = 0;
+    for (let i = 0; i < counters.length; i++) {
+      total += counters[i];
+      patternTotal += pattern[i];
+    }
+    if (total < patternTotal) return Infinity;
+
+    const unit = total / patternTotal;
+    const allowed = maxIndividual * unit;
+    let variance = 0;
+    for (let i = 0; i < counters.length; i++) {
+      const scaled = pattern[i] * unit;
+      const difference = Math.abs(counters[i] - scaled);
+      if (difference > allowed) return Infinity;
+      variance += difference;
+    }
+    return variance / total;
+  }
+}
+
+class LinearBarcodeReader {
+  /**
+   * @param row Uint8Array of 0/1 across one scanline (1 = dark)
+   * @returns {value, format} or null
+   */
+  static decodeRow(row) {
+    const start = LinearBarcodeReader._findGuard(row, 0, false, START_GUARD);
+    if (start === null) return null;
+
+    const thirteen = LinearBarcodeReader._decodeEan13(row, start);
+    if (thirteen !== null) return thirteen;
+
+    const eight = LinearBarcodeReader._decodeEan8(row, start);
+    if (eight !== null) return eight;
+
+    return null;
+  }
+
+  /** EAN-13 only, so it can be tried in both directions first. */
+  static decodeEan13Row(row) {
+    const start = LinearBarcodeReader._findGuard(row, 0, false, START_GUARD);
+    if (start === null) return null;
+    return LinearBarcodeReader._decodeEan13(row, start);
+  }
+
+  /** EAN-8 only. */
+  static decodeEan8Row(row) {
+    const start = LinearBarcodeReader._findGuard(row, 0, false, START_GUARD);
+    if (start === null) return null;
+    return LinearBarcodeReader._decodeEan8(row, start);
+  }
+
+  /**
+   * One scanline, both directions, longer symbology first.
+   *
+   * A barcode read right-to-left — mirrored, upside down, or simply
+   * approached from the other side — is the same line reversed, so both are
+   * tried. The order matters more than it looks: an EAN-13 read backwards
+   * can occasionally satisfy the shorter EAN-8 structure and its check
+   * digit, yielding eight plausible but wrong digits. Exhausting EAN-13 in
+   * both directions before EAN-8 is considered removes that chance.
+   */
+  static decodeBothWays(row) {
+    const reversed = new Uint8Array(row.length);
+    for (let x = 0; x < row.length; x++) reversed[x] = row[row.length - 1 - x];
+
+    const forward13 = LinearBarcodeReader.decodeEan13Row(row);
+    if (forward13 !== null) return forward13;
+
+    const backward13 = LinearBarcodeReader.decodeEan13Row(reversed);
+    if (backward13 !== null) return backward13;
+
+    const forward8 = LinearBarcodeReader.decodeEan8Row(row);
+    if (forward8 !== null) return forward8;
+
+    return LinearBarcodeReader.decodeEan8Row(reversed);
+  }
+
+  static _recordPattern(row, start, count) {
+    const counters = new Array(count).fill(0);
+    const end = row.length;
+    let index = start;
+    if (index >= end) return null;
+
+    let dark = row[index] === 1;
+    let counter = 0;
+    for (let i = 0; index < end; index++) {
+      if ((row[index] === 1) === dark) {
+        counters[i]++;
+      } else {
+        i++;
+        if (i === count) break;
+        counters[i]++;
+        dark = !dark;
+      }
+      counter++;
+    }
+    let filled = 0;
+    for (let i = 0; i < count; i++) if (counters[i] > 0) filled++;
+    if (filled !== count) return null;
+    return { counters, end: index };
+  }
+
+  static _findGuard(row, from, whiteFirst, pattern) {
+    let index = from;
+    const end = row.length;
+
+    // Move to the first run of the colour the pattern starts with.
+    let isWhite = whiteFirst;
+    while (index < end && (row[index] === 1) === isWhite) index++;
+
+    const counters = new Array(pattern.length).fill(0);
+    let counterPosition = 0;
+    let patternStart = index;
+
+    for (let x = index; x < end; x++) {
+      const dark = row[x] === 1;
+      if (dark !== isWhite) {
+        counters[counterPosition]++;
+      } else {
+        if (counterPosition === pattern.length - 1) {
+          if (PatternMatcher.variance(counters, pattern, MAX_INDIVIDUAL_VARIANCE) < MAX_AVG_VARIANCE) {
+            return { start: patternStart, end: x };
+          }
+          patternStart += counters[0] + counters[1];
+          for (let i = 2; i < pattern.length; i++) counters[i - 2] = counters[i];
+          counters[pattern.length - 2] = 0;
+          counters[pattern.length - 1] = 0;
+          counterPosition--;
+        } else {
+          counterPosition++;
+        }
+        counters[counterPosition] = 1;
+        isWhite = !isWhite;
+      }
+    }
+    return null;
+  }
+
+  static _decodeDigit(row, start, patterns) {
+    const recorded = LinearBarcodeReader._recordPattern(row, start, 4);
+    if (recorded === null) return null;
+
+    let best = -1;
+    let bestVariance = MAX_AVG_VARIANCE;
+    for (let i = 0; i < patterns.length; i++) {
+      const variance = PatternMatcher.variance(recorded.counters, patterns[i], MAX_INDIVIDUAL_VARIANCE);
+      if (variance < bestVariance) {
+        bestVariance = variance;
+        best = i;
+      }
+    }
+    if (best < 0) return null;
+    return { digit: best, end: recorded.end };
+  }
+
+  static _decodeEan13(row, startGuard) {
+    let index = startGuard.end;
+    let parity = 0;
+    let digits = '';
+
+    for (let i = 0; i < 6; i++) {
+      const found = LinearBarcodeReader._decodeDigit(row, index, L_AND_G);
+      if (found === null) return null;
+      digits += String(found.digit % 10);
+      if (found.digit >= 10) parity |= 1 << (5 - i);
+      index = found.end;
+    }
+
+    let leading = -1;
+    for (let i = 0; i < 10; i++) {
+      if (FIRST_DIGIT_PARITY[i] === parity) { leading = i; break; }
+    }
+    if (leading < 0) return null;
+
+    const middle = LinearBarcodeReader._findGuard(row, index, true, MIDDLE_GUARD);
+    if (middle === null) return null;
+    index = middle.end;
+
+    for (let i = 0; i < 6; i++) {
+      const found = LinearBarcodeReader._decodeDigit(row, index, DIGIT_PATTERNS);
+      if (found === null) return null;
+      digits += String(found.digit);
+      index = found.end;
+    }
+
+    // The symbol must actually end where the digits do.
+    if (!LinearBarcodeReader._endsWithGuard(row, index)) return null;
+
+    const value = String(leading) + digits;
+    if (!LinearBarcodeReader.checksumOk(value)) return null;
+    const format = value[0] === '0' ? 'upc_a' : 'ean_13';
+    return { value, format };
+  }
+
+  static _decodeEan8(row, startGuard) {
+    let index = startGuard.end;
+    let digits = '';
+
+    for (let i = 0; i < 4; i++) {
+      const found = LinearBarcodeReader._decodeDigit(row, index, DIGIT_PATTERNS);
+      if (found === null) return null;
+      digits += String(found.digit);
+      index = found.end;
+    }
+
+    const middle = LinearBarcodeReader._findGuard(row, index, true, MIDDLE_GUARD);
+    if (middle === null) return null;
+    index = middle.end;
+
+    for (let i = 0; i < 4; i++) {
+      const found = LinearBarcodeReader._decodeDigit(row, index, DIGIT_PATTERNS);
+      if (found === null) return null;
+      digits += String(found.digit);
+      index = found.end;
+    }
+
+    if (!LinearBarcodeReader._endsWithGuard(row, index)) return null;
+    if (digits.length !== 8 || !LinearBarcodeReader.checksumOk(digits)) return null;
+    return { value: digits, format: 'ean_8' };
+  }
+
+  /** The closing 101 guard, without which the read is a coincidence. */
+  static _endsWithGuard(row, index) {
+    const recorded = LinearBarcodeReader._recordPattern(row, index, 3);
+    if (recorded === null) return false;
+    return PatternMatcher.variance(recorded.counters, START_GUARD, MAX_INDIVIDUAL_VARIANCE) < MAX_AVG_VARIANCE;
+  }
+
+  /** Standard GTIN check digit: weights alternate 3 and 1 from the right. */
+  static checksumOk(value) {
+    let sum = 0;
+    for (let i = 0; i < value.length - 1; i++) {
+      const digit = value.charCodeAt(value.length - 2 - i) - 48;
+      if (digit < 0 || digit > 9) return false;
+      sum += (i % 2 === 0) ? digit * 3 : digit;
+    }
+    const check = (10 - (sum % 10)) % 10;
+    return check === (value.charCodeAt(value.length - 1) - 48);
+  }
+}
+
+class LinearBarcodeScanner {
+  /**
+   * Works from the grey image rather than the page-wide binarization: a
+   * barcode is a one-dimensional signal, so averaging a few lines together
+   * and thresholding against a local window along the line rejects sensor
+   * noise and uneven lighting far better than a global pass.
+   *
+   * @param image {gray: Uint8ClampedArray, width, height}
+   */
+  static scan(image) {
+    const rows = LinearBarcodeScanner._scanLines(image, false);
+    if (rows !== null) return rows;
+    // Then the same, reading down the columns, so the orientation of the
+    // phone against the pack does not decide whether this works.
+    return LinearBarcodeScanner._scanLines(image, true);
+  }
+
+  static _scanLines(image, transposed) {
+    const width = transposed ? image.height : image.width;
+    const height = transposed ? image.width : image.height;
+    const source = image.gray;
+    const sourceWidth = image.width;
+    const read = transposed
+      ? (x, y) => source[x * sourceWidth + y]
+      : (x, y) => source[y * sourceWidth + x];
+
+    const attempts = 24;
+    const shortCodes = {};   // EAN-8 candidates, awaiting a second opinion
+
+    for (let i = 0; i < attempts; i++) {
+      const y = Math.floor((i + 1) * height / (attempts + 1));
+
+      /*
+       * A barcode repeats vertically, so take the mean of a few
+       * neighbouring lines. Speckle from a noisy sensor averages out while
+       * the bars, identical down the column, survive intact.
+       */
+      const averaged = new Float32Array(width);
+      for (let x = 0; x < width; x++) {
+        let sum = 0;
+        let seen = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= height) continue;
+          sum += read(x, yy);
+          seen++;
+        }
+        averaged[x] = sum / seen;
+      }
+
+      /*
+       * Two readings of the same line, because the two things that ruin a
+       * barcode want opposite treatment. Sensor noise wants smoothing; blur
+       * is already a smear, and smoothing it again welds neighbouring bars
+       * together. Neither filter alone reads both, so the sharp signal goes
+       * first and the smoothed one after.
+       */
+      const smoothed = new Float32Array(width);
+      for (let x = 0; x < width; x++) {
+        const a = averaged[Math.max(0, x - 1)];
+        const b = averaged[x];
+        const c = averaged[Math.min(width - 1, x + 1)];
+        smoothed[x] = (a + 2 * b + c) / 4;
+      }
+
+      const signals = [averaged, smoothed];
+
+      for (let pass = 0; pass < signals.length; pass++) {
+        const row = LinearBarcodeScanner._threshold(signals[pass], width);
+        if (row === null) continue;
+
+        const found = LinearBarcodeReader.decodeBothWays(row);
+        if (found === null) continue;
+
+        /*
+         * Thirteen digits, two guards and a check digit make a false
+         * EAN-13 vanishingly unlikely, so one clean read is enough.
+         *
+         * EAN-8 is a weaker claim: fewer digits, fewer constraints, and a
+         * check digit that a misread line passes one time in ten. A badly
+         * degraded EAN-13 really does occasionally satisfy it and yield
+         * eight plausible, wrong digits — which is worse than reading
+         * nothing, because nothing prompts another try and wrong digits do
+         * not. So a short code has to turn up on two separate lines before
+         * it is believed.
+         */
+        if (found.format !== 'ean_8') return found;
+
+        shortCodes[found.value] = (shortCodes[found.value] || 0) + 1;
+        if (shortCodes[found.value] >= 2) return found;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Dark where the line dips below the midpoint between the darkest and
+   * lightest values nearby. Computed over blocks so the window is cheap,
+   * and local so a lighting gradient across the label does not matter.
+   */
+  static _threshold(signal, width) {
+    const BLOCK = 8;
+    const blocks = Math.ceil(width / BLOCK);
+    const blockMin = new Float32Array(blocks);
+    const blockMax = new Float32Array(blocks);
+
+    for (let b = 0; b < blocks; b++) {
+      let min = 255;
+      let max = 0;
+      const end = Math.min(width, (b + 1) * BLOCK);
+      for (let x = b * BLOCK; x < end; x++) {
+        if (signal[x] < min) min = signal[x];
+        if (signal[x] > max) max = signal[x];
+      }
+      blockMin[b] = min;
+      blockMax[b] = max;
+    }
+
+    const reach = Math.max(2, Math.floor(width / (BLOCK * 12)));
+    const row = new Uint8Array(width);
+    let dark = 0;
+
+    for (let b = 0; b < blocks; b++) {
+      let min = 255;
+      let max = 0;
+      for (let k = b - reach; k <= b + reach; k++) {
+        if (k < 0 || k >= blocks) continue;
+        if (blockMin[k] < min) min = blockMin[k];
+        if (blockMax[k] > max) max = blockMax[k];
+      }
+      const threshold = (min + max) / 2;
+      const usable = max - min > 18;
+      const end = Math.min(width, (b + 1) * BLOCK);
+      for (let x = b * BLOCK; x < end; x++) {
+        row[x] = usable && signal[x] < threshold ? 1 : 0;
+        if (row[x] === 1) dark++;
+      }
+    }
+
+    return dark < 10 ? null : row;
+  }
+}
+
+/* ==================================================================
+ * 2. RENDERING — matrix to pixels. Separate from encoding, so either
+ *    can change without touching the other.
+ * ================================================================== */
+
+class QrSvgRenderer {
+  constructor(quietZone) { this.quietZone = quietZone === undefined ? 4 : quietZone; }
+
+  render(qr) {
+    const q = this.quietZone;
+    const span = qr.size + q * 2;
+    let path = '';
+    for (let y = 0; y < qr.size; y++) {
+      let x = 0;
+      for (; x < qr.size; x++) {
+        if (!qr.modules[y][x]) continue;
+        let run = 1;
+        for (let k = x + 1; k < qr.size && qr.modules[y][k]; k++) run++;
+        path += 'M' + (x + q) + ' ' + (y + q) + 'h' + run + 'v1h-' + run + 'z';
+        x += run - 1;
+      }
+    }
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + span + ' ' + span + '" ' +
+           'shape-rendering="crispEdges" role="img" aria-label="QR code containing your item numbers">' +
+           '<rect width="' + span + '" height="' + span + '" fill="#ffffff"/>' +
+           '<path d="' + path + '" fill="#000000"/></svg>';
+  }
+}
+
+class QrPngRenderer {
+  constructor(quietZone, scale) {
+    this.quietZone = quietZone === undefined ? 4 : quietZone;
+    this.scale = scale === undefined ? 8 : scale;
+  }
+  toBlob(qr) {
+    const q = this.quietZone;
+    const s = this.scale;
+    const span = (qr.size + q * 2) * s;
+    const canvas = document.createElement('canvas');
+    canvas.width = span;
+    canvas.height = span;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, span, span);
+    ctx.fillStyle = '#000000';
+    for (let y = 0; y < qr.size; y++) {
+      for (let x = 0; x < qr.size; x++) {
+        if (qr.modules[y][x]) ctx.fillRect((x + q) * s, (y + q) * s, s, s);
+      }
+    }
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  }
+}
+
+/* ==================================================================
+ * 3. ID LIST CODECS — how a list of integers becomes QR payload text.
+ *    Each codec owns one format. Adding a third (delta encoding, say)
+ *    means adding a class, not editing the exporter.
+ * ================================================================== */
+
+class PackedIdCodec {
+  constructor() {
+    this.id = 'packed';
+    this.mode = MODE.NUMERIC;
+    this.description = 'Fixed-width digits, no separators. Read the width from the first two digits, then slice.';
+  }
+  static widthFor(ids) {
+    let width = 1;
+    for (let i = 0; i < ids.length; i++) {
+      const digits = String(ids[i]).length;
+      if (digits > width) width = digits;
+    }
+    return width;
+  }
+  encode(ids) {
+    const width = PackedIdCodec.widthFor(ids);
+    let out = String(width).padStart(2, '0');
+    for (let i = 0; i < ids.length; i++) out += String(ids[i]).padStart(width, '0');
+    return out;
+  }
+  /** Inverse of encode — kept here so the format lives in exactly one place. */
+  decode(payload) {
+    const width = parseInt(payload.slice(0, 2), 10);
+    const ids = [];
+    for (let i = 2; i + width <= payload.length; i += width) {
+      ids.push(parseInt(payload.slice(i, i + width), 10));
+    }
+    return ids;
+  }
+  maxItems(capacityChars, ids) {
+    const width = PackedIdCodec.widthFor(ids.length > 0 ? ids : [1]);
+    return Math.max(0, Math.floor((capacityChars - 2) / width));
+  }
+}
+
+class SeparatedIdCodec {
+  constructor() {
+    this.id = 'separated';
+    this.mode = MODE.ALPHANUMERIC;
+    this.description = 'Numbers joined by dashes. Any scanner app shows the list as plain text.';
+  }
+  encode(ids) {
+    let out = '';
+    for (let i = 0; i < ids.length; i++) out += (i > 0 ? '-' : '') + String(ids[i]);
+    return out;
+  }
+  decode(payload) {
+    const parts = payload.split('-');
+    const ids = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].length > 0) ids.push(parseInt(parts[i], 10));
+    }
+    return ids;
+  }
+  maxItems(capacityChars, ids) {
+    const width = PackedIdCodec.widthFor(ids.length > 0 ? ids : [1]);
+    return Math.max(0, Math.floor((capacityChars + 1) / (width + 1)));
+  }
+}
+
+/* ==================================================================
+ * 4. CAPACITY PLANNING — will this list fit, and how much room is left.
+ * ================================================================== */
+
+class QrCapacityPlanner {
+  constructor(maxVersion) { this.maxVersion = maxVersion === undefined ? 40 : maxVersion; }
+
+  plan(ids, codec, ecl) {
+    const payload = codec.encode(ids);
+    const capacity = capacityInChars(codec.mode, this.maxVersion, ecl);
+    const result = {
+      payload: payload,
+      used: payload.length,
+      capacity: capacity,
+      fits: false,
+      version: null,
+      maxItems: codec.maxItems(capacity, ids)
+    };
+    if (ids.length === 0) return result;
+    try {
+      const qr = QrCode.encodeText(payload, ecl, 1, this.maxVersion);
+      result.fits = true;
+      result.version = qr.version;
+      result.qr = qr;
+    } catch (err) {
+      result.fits = false;
+    }
+    return result;
+  }
+}
+
+/* ==================================================================
+ * 5. STORAGE — IndexedDB. Schema owner, then one repository per store.
+ * ================================================================== */
+
+const DB_NAME = 'shelf';
+const DB_VERSION = 4;
+const STORE_ITEMS = 'items';
+const STORE_PHOTOS = 'photos';
+const STORE_META = 'meta';
+
+class Database {
+  static open() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        const tx = event.target.transaction;
+
+        // v1 kept an endpoint setting; the source is local now.
+        if (db.objectStoreNames.contains('settings')) db.deleteObjectStore('settings');
+
+        if (!db.objectStoreNames.contains(STORE_META)) {
+          const meta = db.createObjectStore(STORE_META, { keyPath: 'key' });
+          // Born with the database: no prompt, no ceremony, and nothing for
+          // anyone to configure or forget.
+          const secret = Database.newSecret();
+          if (secret !== null) meta.put({ key: 'deviceSecret', value: secret });
+        }
+
+        if (!db.objectStoreNames.contains(STORE_ITEMS)) {
+          Database._createItems(db);
+          if (!db.objectStoreNames.contains(STORE_PHOTOS)) {
+            db.createObjectStore(STORE_PHOTOS, { keyPath: 'entryId' });
+          }
+          return;
+        }
+
+        /*
+         * v4 adds `syncedAt` — the item's updatedAt as it stood when this
+         * entry last copied it — plus a local snapshot of the codes. Old
+         * rows get 0, which simply means "copied before records were kept",
+         * so the first sync refreshes them.
+         */
+        if (event.oldVersion >= 3 && event.oldVersion < 4) {
+          const store = tx.objectStore(STORE_ITEMS);
+          store.openCursor().onsuccess = (cursorEvent) => {
+            const cursor = cursorEvent.target.result;
+            if (!cursor) return;
+            const record = cursor.value;
+            if (record.syncedAt === undefined) {
+              record.syncedAt = 0;
+              record.codes = record.codes || [];
+              cursor.update(record);
+            }
+            cursor.continue();
+          };
+        }
+
+        /*
+         * v3 changes the primary key. Up to v2 a row WAS an item, keyed by
+         * the server's uuid, so adding the same item twice overwrote the
+         * first. Now a row is an entry: its own local id, with the uuid as
+         * a plain index. A keyPath cannot be altered in place, so the old
+         * rows are read out, the store is rebuilt, and each row is given an
+         * entry id. Photos follow the same key.
+         */
+        if (event.oldVersion < 3) {
+          const oldItems = tx.objectStore(STORE_ITEMS);
+          oldItems.getAll().onsuccess = (itemsEvent) => {
+            const rows = itemsEvent.target.result;
+
+            const carryPhotos = (photoRows) => {
+              db.deleteObjectStore(STORE_ITEMS);
+              if (db.objectStoreNames.contains(STORE_PHOTOS)) db.deleteObjectStore(STORE_PHOTOS);
+              const items = Database._createItems(db);
+              const photos = db.createObjectStore(STORE_PHOTOS, { keyPath: 'entryId' });
+
+              for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const entryId = Database._entryId();
+                items.put({
+                  entryId: entryId,
+                  uuid: row.uuid,
+                  serverId: row.serverId,
+                  title: row.title !== undefined ? row.title : (row.name || '(untitled)'),
+                  addedAt: row.addedAt,
+                  syncedAt: 0,
+                  codes: []
+                });
+                for (let j = 0; j < photoRows.length; j++) {
+                  if (photoRows[j].uuid === row.uuid) {
+                    photos.put({ entryId: entryId, blob: photoRows[j].blob, storedAt: photoRows[j].storedAt });
+                  }
+                }
+              }
+            };
+
+            if (db.objectStoreNames.contains(STORE_PHOTOS)) {
+              tx.objectStore(STORE_PHOTOS).getAll().onsuccess = (photoEvent) => {
+                carryPhotos(photoEvent.target.result);
+              };
+            } else {
+              carryPhotos([]);
+            }
+          };
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  static _createItems(db) {
+    const items = db.createObjectStore(STORE_ITEMS, { keyPath: 'entryId' });
+    items.createIndex('addedAt', 'addedAt');
+    items.createIndex('uuid', 'uuid');          // no longer unique
+    items.createIndex('serverId', 'serverId');
+    return items;
+  }
+
+  /**
+   * A random value that stays on this device.
+   *
+   * It is never sent anywhere and never shown. Its only use is to salt the
+   * idempotency key for a published list, so that republishing the same
+   * selection is recognised as the same list while nobody else — including
+   * the server — can produce or recognise that key.
+   */
+  static newSecret() {
+    /*
+     * A cryptographic source or nothing. Math.random() would produce a
+     * value that looks fine and is guessable, and a guessable secret is
+     * worse than none: it would let someone else derive this device's keys
+     * while the interface claimed otherwise. Returning null instead means
+     * no key is sent and lists are simply never matched.
+     */
+    if (typeof crypto === 'undefined' || !crypto.getRandomValues) return null;
+
+    // Reject a degenerate draw rather than trust the source blindly. A
+    // healthy generator never needs the retry; a broken one should not pass.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+
+      if (!Database._plausiblyRandom(bytes)) continue;
+
+      let hex = '';
+      for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+      return hex;
+    }
+    return null;
+  }
+
+  /** Catches an all-zero or single-repeated-byte draw from a broken source. */
+  static _plausiblyRandom(bytes) {
+    let distinct = 0;
+    const seen = new Uint8Array(256);
+
+    for (let i = 0; i < bytes.length; i++) {
+      if (seen[bytes[i]] === 0) {
+        seen[bytes[i]] = 1;
+        distinct++;
+      }
+    }
+    return distinct >= 8;
+  }
+
+  static _entryId() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return 'e-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+}
+
+/**
+ * Photos are the bulk of what is stored, and browsers evict IndexedDB
+ * under storage pressure. Asking once for persistence exempts this origin.
+ * Failure is not worth reporting: everything still works, it is simply
+ * more likely to be reclaimed if the device runs short of space.
+ */
+class StoragePersistence {
+  static async request() {
+    if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.persist) {
+      return 'unsupported';
+    }
+    try {
+      if (await navigator.storage.persisted()) return 'already granted';
+      return (await navigator.storage.persist()) ? 'granted' : 'denied';
+    } catch (err) {
+      return 'unsupported';
+    }
+  }
+}
+
+/** Shared plumbing so each repository only describes its own data. */
+class KeyValueStore {
+  constructor(db, storeName) {
+    this.db = db;
+    this.storeName = storeName;
+  }
+  _run(mode, work) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(this.storeName, mode);
+      const request = work(tx.objectStore(this.storeName));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+  get(key) { return this._run('readonly', (store) => store.get(key)); }
+  all() { return this._run('readonly', (store) => store.getAll()); }
+  put(value) { return this._run('readwrite', (store) => store.put(value)); }
+  clear() { return this._run('readwrite', (store) => store.clear()); }
+  remove(key) { return this._run('readwrite', (store) => store.delete(key)); }
+}
+
+class ItemRepository {
+  constructor(db) { this.store = new KeyValueStore(db, STORE_ITEMS); }
+
+  async all() {
+    const rows = await this.store.all();
+    rows.sort((a, b) => b.addedAt - a.addedAt);
+    return rows;
+  }
+  get(entryId) { return this.store.get(entryId); }
+  save(entry) { return this.store.put(entry); }
+  remove(entryId) { return this.store.remove(entryId); }
+  clear() { return this.store.clear(); }
+}
+
+class PhotoRepository {
+  constructor(db) { this.store = new KeyValueStore(db, STORE_PHOTOS); }
+
+  async get(entryId) {
+    const row = await this.store.get(entryId);
+    return row ? row.blob : null;
+  }
+  save(entryId, blob) { return this.store.put({ entryId: entryId, blob: blob, storedAt: Date.now() }); }
+  remove(entryId) { return this.store.remove(entryId); }
+  clear() { return this.store.clear(); }
+}
+
+/* ==================================================================
+ * 6. THE ITEMS SOURCE — an anti-corruption layer in four parts.
+ *
+ *    transport  : how bytes arrive (real network, or the built-in mock)
+ *    envelope   : where the rows live inside the response body
+ *    assembler  : raw rows -> ItemDto, with every field name the server
+ *                 might plausibly use listed in one place
+ *    source     : ties them together behind fetchItems()
+ *
+ *    Nothing downstream of the assembler ever touches a server field
+ *    name. When the backend renames `name` to `title` or wraps rows in
+ *    a new envelope key, ItemDtoAssembler and EnvelopeReader are the
+ *    only things that change.
+ * ================================================================== */
+
+/** One machine-readable code printed on a product. */
+class ProductCode {
+  constructor(value, kind) {
+    this.value = String(value).trim();
+    this.kind = kind === 'qr' ? 'qr' : 'barcode';
+    Object.freeze(this);
+  }
+}
+
+/** The frontend's own contract. Deliberately not the server's shape. */
+class ItemDto {
+  constructor(id, uuid, title, codes, createdAt, updatedAt, deletedAt) {
+    this.id = id;
+    this.uuid = uuid;
+    this.title = title;
+    this.codes = Object.freeze(codes || []);   // barcode, QR, both, or neither
+    this.createdAt = createdAt;                // epoch ms, or null
+    this.updatedAt = updatedAt;                // epoch ms, or null
+    this.deletedAt = deletedAt;                // set once withdrawn
+    Object.freeze(this);
+  }
+
+  get withdrawn() { return this.deletedAt !== null && this.deletedAt !== undefined; }
+
+  get barcode() {
+    for (let i = 0; i < this.codes.length; i++) {
+      if (this.codes[i].kind === 'barcode') return this.codes[i].value;
+    }
+    return null;
+  }
+}
+
+/**
+ * The same product code reaches us spelled several ways: a UPC-A is an
+ * EAN-13 without its leading zero, and a QR on the packaging usually holds
+ * a GS1 Digital Link URL wrapped around the same number rather than the
+ * bare digits. This turns any of them into the set of keys they could
+ * match on, so the catalogue is indexed once and scans resolve whatever
+ * form they arrive in.
+ */
+class CodeNormaliser {
+  static keys(raw) {
+    const seen = {};
+    const keys = [];
+    const push = (value) => {
+      if (value === null || value === undefined) return;
+      const text = String(value).trim();
+      if (text.length === 0 || seen[text] === true) return;
+      seen[text] = true;
+      keys.push(text);
+    };
+
+    const trimmed = String(raw).trim();
+    push(trimmed);
+    push(trimmed.toUpperCase());
+    push(trimmed.replace(/\/+$/, ''));
+
+    const gtinFromLink = trimmed.match(/(?:^|\/)01\/(\d{8,14})(?:[\/?#]|$)/);
+    const digits = gtinFromLink !== null ? gtinFromLink[1] : (/^\d+$/.test(trimmed) ? trimmed : null);
+
+    if (digits !== null) {
+      push(digits);
+      if (digits.length === 12) push('0' + digits);
+      if (digits.length === 13 && digits[0] === '0') push(digits.slice(1));
+      if (digits.length === 14 && digits[0] === '0') push(digits.slice(1));
+      if (digits.length === 13) push('0' + digits);
+    }
+    return keys;
+  }
+}
+
+/** Every code of every catalogue item, ready to answer a scan. */
+class CatalogueIndex {
+  constructor(items) {
+    this.byCode = {};
+    for (let i = 0; i < items.length; i++) {
+      const codes = items[i].codes;
+      for (let j = 0; j < codes.length; j++) {
+        const keys = CodeNormaliser.keys(codes[j].value);
+        for (let k = 0; k < keys.length; k++) {
+          if (this.byCode[keys[k]] === undefined) this.byCode[keys[k]] = items[i];
+        }
+      }
+    }
+  }
+
+  find(scanned) {
+    const keys = CodeNormaliser.keys(scanned);
+    for (let i = 0; i < keys.length; i++) {
+      const hit = this.byCode[keys[i]];
+      if (hit !== undefined) return hit;
+    }
+    return null;
+  }
+}
+
+/** A rejected row, kept so contract drift is visible instead of silent. */
+class DtoRejection {
+  constructor(index, reason, raw) {
+    this.index = index;
+    this.reason = reason;
+    this.raw = raw;
+  }
+}
+
+class ItemDtoAssembler {
+  constructor() {
+    // Every spelling the backend has used, or might. Order is priority.
+    this.aliases = {
+      id:    ['id', 'item_id', 'itemId', 'itemID', 'number'],
+      uuid:  ['uuid', 'item_uuid', 'itemUuid', 'guid', 'uid'],
+      title: ['name', 'title', 'item_name', 'itemName', 'label', 'description'],
+      barcode: ['barcode', 'gtin', 'ean', 'ean13', 'upc', 'product_code'],
+      qr: ['qr_code', 'qr', 'qrCode', 'qr_payload', 'digital_link'],
+      createdAt: ['created_at', 'createdAt', 'created'],
+      updatedAt: ['updated_at', 'updatedAt', 'modified_at', 'changed_at', 'updated'],
+      deletedAt: ['deleted_at', 'deletedAt', 'withdrawn_at', 'retired_at']
+    };
+  }
+
+  /** ISO 8601, epoch seconds or epoch milliseconds, all to epoch ms. */
+  static moment(raw) {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (typeof raw === 'number') return raw < 1e11 ? Math.round(raw * 1000) : Math.round(raw);
+    const parsed = Date.parse(String(raw));
+    return isNaN(parsed) ? null : parsed;
+  }
+
+  _pick(row, field) {
+    const keys = this.aliases[field];
+    for (let i = 0; i < keys.length; i++) {
+      const value = row[keys[i]];
+      if (value !== undefined && value !== null && String(value).length > 0) return value;
+    }
+    return null;
+  }
+
+  /**
+   * Codes may arrive as scalar fields, or as a list of strings, or as a
+   * list of objects with their own type. All three collapse to the same
+   * ProductCode array here so nothing downstream has to care.
+   */
+  _codes(row) {
+    const codes = [];
+    const add = (value, kind) => {
+      if (value === null || value === undefined) return;
+      const text = String(value).trim();
+      if (text.length === 0) return;
+      for (let i = 0; i < codes.length; i++) {
+        if (codes[i].value === text) return;
+      }
+      codes.push(new ProductCode(text, kind));
+    };
+
+    add(this._pick(row, 'barcode'), 'barcode');
+    add(this._pick(row, 'qr'), 'qr');
+
+    const list = row.codes || row.identifiers;
+    if (Array.isArray(list)) {
+      for (let i = 0; i < list.length; i++) {
+        const entry = list[i];
+        if (entry === null || entry === undefined) continue;
+        if (typeof entry === 'object') {
+          const kind = String(entry.kind || entry.type || entry.symbology || '').toLowerCase();
+          add(entry.value || entry.code, kind.indexOf('qr') !== -1 ? 'qr' : 'barcode');
+        } else {
+          const text = String(entry).trim();
+          add(text, /^\d+$/.test(text) ? 'barcode' : 'qr');
+        }
+      }
+    }
+    return codes;
+  }
+
+  /**
+   * @returns {{items: ItemDto[], rejections: DtoRejection[]}}
+   */
+  assemble(rows) {
+    const items = [];
+    const rejections = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+        rejections.push(new DtoRejection(i, 'not an object', row));
+        continue;
+      }
+
+      const rawId = this._pick(row, 'id');
+      const rawUuid = this._pick(row, 'uuid');
+      const rawTitle = this._pick(row, 'title');
+
+      if (rawId === null) { rejections.push(new DtoRejection(i, 'no id field', row)); continue; }
+      if (rawUuid === null) { rejections.push(new DtoRejection(i, 'no uuid field', row)); continue; }
+      if (rawTitle === null) { rejections.push(new DtoRejection(i, 'no name field', row)); continue; }
+
+      // The server sends int(11); JSON may hand it over as a string.
+      const id = Number(String(rawId).trim());
+      if (!Number.isInteger(id) || id < 0 || id > 4294967295) {
+        rejections.push(new DtoRejection(i, 'id is not a positive integer', row));
+        continue;
+      }
+
+      const uuid = String(rawUuid).trim().toLowerCase();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(uuid)) {
+        rejections.push(new DtoRejection(i, 'uuid is malformed', row));
+        continue;
+      }
+
+      const title = String(rawTitle).trim();
+      if (title.length === 0) {
+        rejections.push(new DtoRejection(i, 'name is empty', row));
+        continue;
+      }
+
+      items.push(new ItemDto(
+        id,
+        uuid,
+        title,
+        this._codes(row),
+        ItemDtoAssembler.moment(this._pick(row, 'createdAt')),
+        ItemDtoAssembler.moment(this._pick(row, 'updatedAt')),
+        ItemDtoAssembler.moment(this._pick(row, 'deletedAt'))
+      ));
+    }
+
+    return { items: items, rejections: rejections };
+  }
+}
+
+/** Finds the row array wherever the server decided to put it. */
+class EnvelopeReader {
+  constructor() { this.keys = ['data', 'items', 'results', 'records', 'payload']; }
+
+  read(body) {
+    if (Array.isArray(body)) return { rows: body, schema: null };
+    if (body === null || typeof body !== 'object') {
+      throw new Error('Response was not JSON object or array');
+    }
+    for (let i = 0; i < this.keys.length; i++) {
+      const candidate = body[this.keys[i]];
+      if (Array.isArray(candidate)) {
+        return { rows: candidate, schema: body.schema || body.version || null };
+      }
+    }
+    throw new Error('No array of items found in the response');
+  }
+}
+
+/*
+ * Where the catalogue lives. Same origin by default; point this at the
+ * Symfony app's base URL if the API is hosted separately. If the request
+ * fails — no server, opened from a file, offline — the page falls back to
+ * the built-in sample data rather than showing nothing.
+ */
+const API_BASE_RAW = '';   // '' = same origin; e.g. 'https://api.example.org' if hosted apart
+
+/*
+ * A trailing slash here is the difference between a working POST and a
+ * mystifying 405. `base + '/api/items'` would become '…//api/items', and a
+ * server that normalises or redirects that answers with a 301 — which
+ * browsers follow by re-issuing the request as GET. The POST-only endpoint
+ * then reports a GET it never received. Strip it once, here.
+ */
+const API_BASE = String(API_BASE_RAW).replace(/\/+$/, '');
+
+class HttpItemFeed {
+  constructor(base) { this.base = base; }
+
+  async get() {
+    const response = await fetch(this.base + '/api/catalogue', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      credentials: 'omit',  // never send cookies: the API has no identity
+      /*
+       * The catalogue is read again immediately after contributing to it,
+       * so a cached copy is worse than no copy: it would be the one state
+       * guaranteed not to contain what was just added.
+       */
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('catalogue responded ' + response.status);
+    return response.json();
+  }
+}
+
+/** Posts a scanned product to the shared catalogue. */
+class HttpCatalogueWriter {
+  constructor(base) { this.base = base; }
+
+  async create(codes, name) {
+    return this._send(this.base + '/api/items', {
+      name: name,
+      // Exactly the product, and nothing about the person scanning it.
+      codes: codes
+    });
+  }
+
+  /**
+   * Re-contribute a product the catalogue has withdrawn. The submission
+   * endpoint matches it by code and brings it back, so this needs no
+   * special route of its own.
+   */
+  async revive(dto, code) {
+    return this._send(this.base + '/api/items', {
+      name: dto.title,
+      codes: [{ kind: code.kind, value: code.value }]
+    });
+  }
+
+  /** Attach a further code to a product that already exists. */
+  async link(uuid, code) {
+    return this._send(this.base + '/api/items/' + encodeURIComponent(uuid) + '/codes', code);
+  }
+
+  async _send(url, body) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      credentials: 'omit',
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      let detail = 'the server rejected it (' + response.status + ')';
+      try {
+        const payload = await response.json();
+        if (payload && payload.message) detail = payload.message;
+      } catch (err) { /* keep the status-based message */ }
+      throw new Error(detail);
+    }
+    return response.json();
+  }
+}
+
+/**
+ * Registers a selection of item numbers with the server and gets back the
+ * address that will become the QR code's entire payload.
+ */
+class HttpListPublisher {
+  constructor(base, fingerprint) {
+    this.base = base;
+    this.fingerprint = fingerprint;
+  }
+
+  async publish(ids) {
+    const payload = { items: ids };   // item numbers, nothing else
+    const key = this.fingerprint === null ? null : await this.fingerprint.of(ids);
+
+    if (key !== null) payload.fingerprint = key;
+
+    const response = await fetch(this.base + '/api/lists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      credentials: 'omit',
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      let detail = 'the server answered ' + response.status;
+      try {
+        const body = await response.json();
+        if (body && body.message) detail = body.message;
+      } catch (err) { /* keep the status-based message */ }
+      throw new Error(detail);
+    }
+
+    const body = await response.json();
+    if (!body.url) throw new Error('the server did not return an address');
+    return body;
+  }
+}
+
+/**
+ * Tries the real catalogue first and falls back to the built-in sample data
+ * when there is no server to talk to, so the page is never dead on arrival.
+ */
+class FallbackItemFeed {
+  constructor(primary, backup) {
+    this.primary = primary;
+    this.backup = backup;
+    this.usingBackup = primary === null;
+  }
+
+  async get() {
+    if (this.primary !== null) {
+      try {
+        const body = await this.primary.get();
+        this.usingBackup = false;
+        return body;
+      } catch (err) {
+        this.usingBackup = true;
+      }
+    }
+    return this.backup.get();
+  }
+}
+
+/* ---- feed -------------------------------------------------------- */
+
+/**
+ * Stands in for the backend. It hands back the same envelope a server
+ * would, so the reader and assembler below are exercised for real rather
+ * than bypassed. Replacing this with a class that does
+ * `fetch(url)` and returns `response.json()` is the only change needed
+ * when the endpoint exists — nothing downstream knows the difference.
+ */
+class LocalMockFeed {
+  constructor() {
+    /* id, uuid, name, barcode, qr — the shape the server now stores. */
+    this.rows = [
+      [40112, 'bdd640fb-0667-4ad1-9c80-317fa3b1799d', 'Band-aid-wide',             '5701120030018', 'https://id.example.org/01/05701120030018'],
+      [40119, '23b8c1e9-3924-46de-beb1-3b9046685257', 'Band-aid Waterproof',       '5701120030087', 'https://id.example.org/01/05701120030087'],
+      [40126, 'bd9c66b3-ad3c-4d6d-9a3d-1fa7bc8960a9', 'Band-aid Cotton',           '5701120030155', null],
+      [40133, '972a8469-1641-4f82-8b9d-2434e465e150', 'Coloplast Stomi Bag',       '5701120030223', 'https://id.example.org/01/05701120030223'],
+      [40140, '17fc695a-07a0-4a6e-8822-e8f36c031199', 'Coloplast Compeed Blister', '5701120030292', 'https://id.example.org/01/05701120030292'],
+      [40147, '9a1de644-815e-46d1-bb8f-aa1837f8a88b', 'Coloplast Compeed Comfort', '5701120030360', 'https://id.example.org/01/05701120030360'],
+      [40154, 'b74d0fb1-32e7-4629-8fad-c1a606cb0fb3', 'Coloplast Compeed Aquatic', '5701120030438', null],
+      [40161, '6b65a6a4-8b81-48f6-b38a-088ca65ed389', 'IbuProfen Pills',           '5701120030506', 'https://id.example.org/01/05701120030506'],
+      [40168, '47378190-96da-4dac-b2ff-5d2a386ecbe0', 'Aspirine',                  null,            'https://id.example.org/01/05701120030575']
+    ];
+  }
+
+  async get() {
+    const data = [];
+    for (let i = 0; i < this.rows.length; i++) {
+      data.push({
+        id: this.rows[i][0],
+        uuid: this.rows[i][1],
+        name: this.rows[i][2],
+        barcode: this.rows[i][3],
+        qr_code: this.rows[i][4]
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 120)); // a plausible round trip
+    return { schema: 'items.v1', count: data.length, data: data };
+  }
+}
+
+/* ---- the source ------------------------------------------------- */
+
+class ItemSource {
+  constructor(feed, envelope, assembler) {
+    this.feed = feed;
+    this.envelope = envelope;
+    this.assembler = assembler;
+  }
+
+  /** @returns {{items: ItemDto[], rejections: DtoRejection[], schema: ?string}} */
+  async fetchItems() {
+    const body = await this.feed.get();
+    const envelope = this.envelope.read(body);
+    const assembled = this.assembler.assemble(envelope.rows);
+    if (assembled.items.length === 0) {
+      throw new Error('No usable items — each row needs an id, a uuid and a name');
+    }
+    return { items: assembled.items, rejections: assembled.rejections, schema: envelope.schema };
+  }
+}
+
+/* ==================================================================
+ * 6b. SCANNING — one frame in, a product code out.
+ *
+ *     Two sources behind one interface: the browser's own detector where
+ *     it exists, and the decoders above everywhere else. Chrome on
+ *     Android has BarcodeDetector; no engine on iOS does, and since every
+ *     iOS browser is WebKit underneath, the fallback is the only path
+ *     there — which is why it is written out in full rather than pulled
+ *     from a CDN.
+ * ================================================================== */
+
+class NativeCodeSource {
+  constructor(detector) { this.detector = detector; }
+
+  static async create() {
+    if (typeof window === 'undefined' || !('BarcodeDetector' in window)) return null;
+    try {
+      const available = await window.BarcodeDetector.getSupportedFormats();
+      const wanted = ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'];
+      const formats = [];
+      for (let i = 0; i < wanted.length; i++) {
+        if (available.indexOf(wanted[i]) !== -1) formats.push(wanted[i]);
+      }
+      if (formats.length === 0) return null;
+      return new NativeCodeSource(new window.BarcodeDetector({ formats: formats }));
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async detect(canvas) {
+    const found = await this.detector.detect(canvas);
+    if (!found || found.length === 0) return null;
+    return { value: found[0].rawValue, format: found[0].format };
+  }
+}
+
+class FallbackCodeSource {
+  async detect(canvas, imageData) {
+    const text = QrImageDecoder.decode(imageData);
+    if (text !== null) return { value: text, format: 'qr_code' };
+
+    const linear = LinearBarcodeScanner.scan(Binarizer.toLuminance(imageData));
+    if (linear !== null) return { value: linear.value, format: linear.format };
+
+    return null;
+  }
+}
+
+class CodeScanner {
+  constructor(primary, fallback) {
+    this.primary = primary;
+    this.fallback = fallback;
+  }
+
+  static async create() {
+    return new CodeScanner(await NativeCodeSource.create(), new FallbackCodeSource());
+  }
+
+  get usingNative() { return this.primary !== null; }
+
+  async scan(canvas, imageData) {
+    if (this.primary !== null) {
+      try {
+        const found = await this.primary.detect(canvas);
+        if (found !== null) return found;
+      } catch (err) {
+        this.primary = null;   // one failure is enough; stop trying it
+      }
+    }
+    return this.fallback.detect(canvas, imageData);
+  }
+}
+
+/** Owns the camera stream and nothing else. */
+class CameraFeed {
+  constructor() { this.stream = null; }
+
+  async start(video) {
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        advanced: [{ focusMode: 'continuous' }]
+      },
+      audio: false
+    });
+    video.srcObject = this.stream;
+    video.setAttribute('playsinline', 'true');   // iOS refuses to inline without it
+    video.muted = true;
+    await video.play();
+  }
+
+  stop() {
+    if (this.stream === null) return;
+    const tracks = this.stream.getTracks();
+    for (let i = 0; i < tracks.length; i++) tracks[i].stop();
+    this.stream = null;
+  }
+}
+
+/**
+ * Writes a newly scanned product into the catalogue. Today that is the
+ * local mock list; when the backend grows a POST endpoint this is the one
+ * class that changes.
+ */
+class MockCatalogueWriter {
+  constructor(feed) { this.feed = feed; }
+
+  async create(codes, name) {
+    let highest = 0;
+    for (let i = 0; i < this.feed.rows.length; i++) {
+      if (this.feed.rows[i][0] > highest) highest = this.feed.rows[i][0];
+    }
+
+    let barcode = null;
+    let qr = null;
+    for (let i = 0; i < codes.length; i++) {
+      if (codes[i].kind === 'qr') { if (qr === null) qr = codes[i].value; }
+      else if (barcode === null) barcode = codes[i].value;
+    }
+
+    const row = [highest + 7, CameraScanView.newUuid(), name, barcode, qr];
+    this.feed.rows.push(row);
+    return { id: row[0], uuid: row[1], name: row[2], barcode: row[3], qr_code: row[4] };
+  }
+
+  /** The sample catalogue has no withdrawals, so reviving is a no-op. */
+  async revive(dto, code) {
+    return { id: dto.id, uuid: dto.uuid, name: dto.title, restored: false };
+  }
+
+  /** Attach a further code to a row already in the mock catalogue. */
+  async link(uuid, code) {
+    for (let i = 0; i < this.feed.rows.length; i++) {
+      if (this.feed.rows[i][1] !== uuid) continue;
+      if (code.kind === 'qr') this.feed.rows[i][4] = code.value;
+      else this.feed.rows[i][3] = code.value;
+      const row = this.feed.rows[i];
+      return { id: row[0], uuid: row[1], name: row[2], barcode: row[3], qr_code: row[4] };
+    }
+    throw new Error('that product is no longer in the catalogue');
+  }
+}
+
+/* ==================================================================
+ * 7. SERVICE — the use cases, expressed once, free of DOM detail.
+ * ================================================================== */
+
+class ShelfService {
+  constructor(itemRepository, photoRepository) {
+    this.items = itemRepository;
+    this.photos = photoRepository;
+  }
+
+  list() { return this.items.all(); }
+
+  /**
+   * Each add is a separate entry, even for an item already on the list:
+   * the same product bought twice is two events with two dates. The item
+   * number is stored alongside the uuid because the QR export needs it
+   * while offline, rather than re-fetching at export time.
+   *
+   * @returns {string} the new entry's local id
+   */
+  async add(dto) {
+    const entryId = Database._entryId();
+    const codes = [];
+    for (let i = 0; i < dto.codes.length; i++) {
+      codes.push({ kind: dto.codes[i].kind, value: dto.codes[i].value });
+    }
+
+    await this.items.save({
+      entryId: entryId,
+      uuid: dto.uuid,
+      serverId: dto.id,
+      title: dto.title,
+      codes: codes,
+      addedAt: Date.now(),
+      // What the item looked like when copied, so a later change is visible.
+      syncedAt: dto.updatedAt === null ? Date.now() : dto.updatedAt,
+      withdrawnAt: dto.deletedAt === null ? null : dto.deletedAt
+    });
+    return entryId;
+  }
+
+  /** How many entries exist per catalogue uuid, for the catalogue view. */
+  async countsByUuid() {
+    const rows = await this.items.all();
+    const counts = {};
+    for (let i = 0; i < rows.length; i++) {
+      const uuid = rows[i].uuid;
+      counts[uuid] = (counts[uuid] || 0) + 1;
+    }
+    return counts;
+  }
+
+  async remove(entryId) {
+    await this.items.remove(entryId);
+    await this.photos.remove(entryId);
+  }
+
+  async attachPhoto(entryId, file) {
+    const blob = await ImageScaler.shrink(file, 720);
+    await this.photos.save(entryId, blob);
+  }
+
+  removePhoto(entryId) { return this.photos.remove(entryId); }
+  photo(entryId) { return this.photos.get(entryId); }
+
+  /**
+   * Erase this person's list and their photos from this device.
+   *
+   * Deliberately limited to the two local stores. The catalogue is not
+   * touched — not the items that came from the server, and not the ones
+   * this person added by scanning, which belong to the shared catalogue
+   * rather than to them. Nothing here reaches the server at all.
+   */
+  async eraseLocalData() {
+    const items = await this.items.all();
+    await this.items.clear();
+    await this.photos.clear();
+    return items.length;
+  }
+}
+
+/** Small key/value store for things about the device, not about items. */
+class MetaRepository {
+  constructor(db) { this.store = new KeyValueStore(db, STORE_META); }
+
+  async get(key, fallback) {
+    const row = await this.store.get(key);
+    return row === undefined ? fallback : row.value;
+  }
+  set(key, value) { return this.store.put({ key: key, value: value }); }
+}
+
+/**
+ * Keeps the personal list in step with the catalogue.
+ *
+ * Each entry remembers the item's `updatedAt` as it stood when the entry
+ * last copied it. If the server's is newer, the catalogue has changed since
+ * and the entry's copy — title, codes — is refreshed. Anything the person
+ * owns is left alone: their photo, the date they added it, and the entry
+ * itself all survive, because the catalogue describes the product and they
+ * own the record of having it.
+ *
+ * An entry whose product has vanished from the catalogue is reported, not
+ * deleted. Losing something from someone's list because a supplier withdrew
+ * a line would be the wrong trade.
+ */
+class CatalogueSync {
+  constructor(itemRepository) { this.items = itemRepository; }
+
+  /**
+   * @param entries local rows
+   * @param index   CatalogueIndex-like lookup by item number
+   * @returns {{updated: object[], missing: object[], checked: number}}
+   */
+  async reconcile(entries, byNumber) {
+    const updated = [];
+    const missing = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const item = byNumber[entry.serverId];
+
+      if (item === undefined) {
+        missing.push(entry);
+        continue;
+      }
+
+      const serverMoment = item.updatedAt === null ? 0 : item.updatedAt;
+      const copiedAt = entry.syncedAt === undefined ? 0 : entry.syncedAt;
+
+      if (serverMoment <= copiedAt) continue;
+
+      const changes = CatalogueSync._differences(entry, item);
+      const refreshed = {
+        entryId: entry.entryId,
+        uuid: item.uuid,
+        serverId: item.id,
+        title: item.title,
+        codes: CatalogueSync._snapshot(item),
+        addedAt: entry.addedAt,          // theirs, never overwritten
+        syncedAt: serverMoment,
+        // A tombstone is recorded on the entry and shown against it. The
+        // entry itself stays: the person had this product, and a supplier
+        // retiring it does not change that.
+        withdrawnAt: item.deletedAt === null ? null : item.deletedAt
+      };
+
+      await this.items.save(refreshed);
+      if (entry.withdrawnAt == null && refreshed.withdrawnAt !== null) changes.push('withdrawn');
+      if (changes.length > 0) updated.push({ before: entry, after: refreshed, changes: changes });
+    }
+
+    return { updated: updated, missing: missing, checked: entries.length };
+  }
+
+  static _snapshot(item) {
+    const codes = [];
+    for (let i = 0; i < item.codes.length; i++) {
+      codes.push({ kind: item.codes[i].kind, value: item.codes[i].value });
+    }
+    return codes;
+  }
+
+  /** What actually differs, so the report can say something specific. */
+  static _differences(entry, item) {
+    const changes = [];
+    if (entry.title !== item.title) changes.push('name');
+
+    const before = CatalogueSync._codeText(entry.codes || []);
+    const after = CatalogueSync._codeText(CatalogueSync._snapshot(item));
+    if (before !== after) changes.push('codes');
+
+    return changes;
+  }
+
+  static _codeText(codes) {
+    const parts = [];
+    for (let i = 0; i < codes.length; i++) parts.push(codes[i].kind + ':' + codes[i].value);
+    parts.sort();
+    return parts.join('|');
+  }
+}
+
+/**
+ * Works out which titles are ambiguous — a title carried by more than one
+ * distinct item. Only then is the item number worth showing, because only
+ * then does the name fail to identify the thing. The uuid is never shown:
+ * it is a key, not information the person can use.
+ */
+class TitleCollisions {
+  static from(rows) {
+    const byTitle = {};
+    for (let i = 0; i < rows.length; i++) {
+      const key = String(rows[i].title).trim().toLowerCase();
+      if (!byTitle[key]) byTitle[key] = [];
+      if (byTitle[key].indexOf(rows[i].uuid) === -1) byTitle[key].push(rows[i].uuid);
+    }
+    const ambiguous = new Set();
+    const keys = Object.keys(byTitle);
+    for (let i = 0; i < keys.length; i++) {
+      if (byTitle[keys[i]].length > 1) ambiguous.add(keys[i]);
+    }
+    return ambiguous;
+  }
+
+  static covers(ambiguous, title) {
+    return ambiguous.has(String(title).trim().toLowerCase());
+  }
+}
+
+/**
+ * Narrows the list to items added on or after a chosen day. The chosen
+ * day counts as included, from local midnight. Filtering lives here
+ * rather than in the view, because the QR export has to agree with what
+ * is on screen — both ask this one object.
+ */
+class AddedSinceFilter {
+  constructor() { this.from = null; }
+
+  /** @param isoDate 'YYYY-MM-DD' from the date field, or '' to clear. */
+  setFrom(isoDate) {
+    if (!isoDate) { this.from = null; return; }
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) { this.from = null; return; }
+    const midnight = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 0, 0, 0, 0);
+    this.from = isNaN(midnight.getTime()) ? null : midnight.getTime();
+  }
+
+  get active() { return this.from !== null; }
+
+  apply(items) {
+    if (this.from === null) return items;
+    const kept = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].addedAt >= this.from) kept.push(items[i]);
+    }
+    return kept;
+  }
+
+  label() {
+    return this.from === null ? '' : new Date(this.from).toLocaleDateString();
+  }
+}
+
+/** Keeps device photos small; they never travel, but they do take space. */
+class ImageScaler {
+  static shrink(file, maxEdge) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = image.naturalWidth;
+        let h = image.naturalHeight;
+        const longest = Math.max(w, h);
+        if (longest > maxEdge) {
+          const factor = maxEdge / longest;
+          w = Math.round(w * factor);
+          h = Math.round(h * factor);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(image, 0, 0, w, h);
+        canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.82);
+      };
+      image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file is not an image')); };
+      image.src = url;
+    });
+  }
+}
+
+/* ==================================================================
+ * 8. VIEWS
+ * ================================================================== */
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    const keys = Object.keys(attrs);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (key === 'text') node.textContent = attrs[key];
+      else if (key === 'html') node.innerHTML = attrs[key];
+      else if (key.slice(0, 2) === 'on') node.addEventListener(key.slice(2), attrs[key]);
+      else if (attrs[key] !== null && attrs[key] !== false) node.setAttribute(key, attrs[key]);
+    }
+  }
+  if (children) {
+    for (let i = 0; i < children.length; i++) {
+      if (children[i]) node.appendChild(children[i]);
+    }
+  }
+  return node;
+}
+
+class Toast {
+  constructor(node) {
+    this.node = node;
+    this.timer = null;
+    this.supported = typeof node.showPopover === 'function';
+    if (!this.supported) node.removeAttribute('popover');
+  }
+
+  /*
+   * Dialogs paint in the top layer, so a toast left in normal flow sits
+   * behind the drawer's backdrop. Shown as a popover it joins the top
+   * layer above them. Browsers without the popover API fall back to
+   * re-homing the node inside whichever dialog is currently on top.
+   */
+  show(message) {
+    this.node.textContent = message;
+
+    if (this.supported) {
+      try {
+        if (!this.node.matches(':popover-open')) this.node.showPopover();
+      } catch (err) {
+        this.supported = false;
+      }
+    }
+    if (!this.supported) {
+      this.node.removeAttribute('popover');
+      const dialogs = document.querySelectorAll('dialog[open]');
+      const host = dialogs.length > 0 ? dialogs[dialogs.length - 1] : document.body;
+      if (this.node.parentNode !== host) host.appendChild(this.node);
+    }
+
+    requestAnimationFrame(() => this.node.classList.add('visible'));
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => this._hide(), 2600);
+  }
+
+  _hide() {
+    this.node.classList.remove('visible');
+    if (!this.supported) return;
+    setTimeout(() => {
+      if (this.node.classList.contains('visible')) return; // shown again meanwhile
+      try {
+        if (this.node.matches(':popover-open')) this.node.hidePopover();
+      } catch (err) { /* already gone */ }
+    }, 220);
+  }
+}
+
+/**
+ * The erase control and its confirmation. Kept as its own view so the
+ * arming state cannot leak into the rest of the drawer.
+ */
+/**
+ * Says where the data lives and whether the browser has agreed to keep it.
+ * Persistence is granted on the browser's own terms, so the honest thing
+ * is to report what actually happened rather than assume it was allowed.
+ */
+class StorageNoticeView {
+  constructor(node) { this.node = node; }
+
+  async render(state) {
+    let used = null;
+    if (navigator.storage && navigator.storage.estimate) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        used = estimate.usage;
+      } catch (err) {
+        used = null;
+      }
+    }
+
+    const size = used === null ? '' : ' (' + StorageNoticeView.readable(used) + ')';
+    const protectedNow = state === 'granted' || state === 'already granted';
+    this.node.textContent = protectedNow
+      ? 'Your list and photos stay in this browser' + size + '. The browser has agreed not to clear them automatically.'
+      : 'Your list and photos stay in this browser' + size + '. The browser may clear them if the device runs low on space.';
+  }
+
+  static readable(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+}
+
+class EraseControlView {
+  constructor(nodes, onConfirm) {
+    this.nodes = nodes;
+    this.onConfirm = onConfirm;
+    this.total = 0;
+
+    nodes.start.addEventListener('click', () => this.arm());
+    nodes.cancel.addEventListener('click', () => this.disarm());
+    nodes.confirm.addEventListener('click', () => this._go());
+  }
+
+  render(total) {
+    this.total = total;
+    this.nodes.start.disabled = total === 0;
+    if (total === 0) this.disarm();
+  }
+
+  arm() {
+    if (this.total === 0) return;
+    const plural = this.total === 1 ? '' : 's';
+    this.nodes.text.innerHTML =
+      'Delete all ' + this.total + ' item' + plural + ' and their photos from this device? ' +
+      '<span class="aside">This cannot be undone. The catalogue is not affected \u2014 ' +
+      'including anything you added by scanning, which stays there for everyone.</span>';
+    this.nodes.normal.hidden = true;
+    this.nodes.confirmRow.hidden = false;
+  }
+
+  disarm() {
+    this.nodes.confirmRow.hidden = true;
+    this.nodes.normal.hidden = false;
+    this.nodes.confirm.disabled = false;
+  }
+
+  async _go() {
+    this.nodes.confirm.disabled = true;
+    try {
+      await this.onConfirm();
+    } finally {
+      this.disarm();
+    }
+  }
+}
+
+/** A button and the region it reveals, kept in step for assistive tech. */
+class DisclosureView {
+  constructor(button, region) {
+    this.button = button;
+    this.region = region;
+    button.addEventListener('click', () => this.toggle());
+  }
+
+  get open() { return this.button.getAttribute('aria-expanded') === 'true'; }
+
+  toggle() { this.set(!this.open); }
+
+  set(open, scroll) {
+    this.button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    this.region.hidden = !open;
+    if (open && scroll !== false) {
+      const motion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.region.scrollIntoView({ behavior: motion ? 'auto' : 'smooth', block: 'start' });
+    }
+  }
+}
+
+/** The trigger in the masthead: how many entries are on the list. */
+class CartButtonView {
+  constructor(button, badge) {
+    this.button = button;
+    this.badge = badge;
+  }
+  render(total) {
+    this.badge.textContent = String(total);
+    this.button.setAttribute('aria-label', total === 1 ? 'Your items, 1 item' : 'Your items, ' + total + ' items');
+  }
+}
+
+class ShelfListView {
+  constructor(host, counter, handlers) {
+    this.host = host;
+    this.counter = counter;
+    this.handlers = handlers;
+    this.objectUrls = [];
+  }
+
+  _releaseUrls() {
+    for (let i = 0; i < this.objectUrls.length; i++) URL.revokeObjectURL(this.objectUrls[i]);
+    this.objectUrls = [];
+  }
+
+  render(visible, photos, selection, total, filterLabel) {
+    this._releaseUrls();
+    this.host.textContent = '';
+
+    if (total === 0) {
+      this.counter.textContent = '';
+    } else if (visible.length === total) {
+      this.counter.textContent = total + ' item' + (total === 1 ? '' : 's');
+    } else {
+      this.counter.textContent = visible.length + ' of ' + total + ' items';
+    }
+
+    if (total === 0) {
+      this.host.appendChild(el('div', {
+        class: 'empty',
+        text: 'Nothing here yet. Add what you own from the catalogue.'
+      }));
+      return;
+    }
+
+    if (visible.length === 0) {
+      this.host.appendChild(el('div', {
+        class: 'empty',
+        text: 'Nothing added on or after ' + filterLabel + '. Pick an earlier date to see more.'
+      }));
+      return;
+    }
+
+    // Repeats of one item are told apart by their timestamps, so a shared
+    // title only needs a number when two *different* items carry it.
+    const ambiguous = TitleCollisions.from(visible);
+    const list = el('ul', { class: 'stack' });
+    for (let i = 0; i < visible.length; i++) {
+      list.appendChild(this._row(visible[i], photos[visible[i].entryId], selection, ambiguous));
+    }
+    this.host.appendChild(list);
+  }
+
+  _row(item, photoBlob, selection, ambiguous) {
+    const added = new Date(item.addedAt);
+    const stamp = added.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) +
+                  ' at ' + added.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const checkbox = el('input', {
+      type: 'checkbox',
+      'aria-label': 'Include ' + item.title + ', added ' + stamp + ', in the QR code'
+    });
+    checkbox.checked = selection.has(item.entryId);
+    checkbox.addEventListener('change', () => this.handlers.onToggle(item.entryId, checkbox.checked));
+
+    let thumb;
+    if (photoBlob) {
+      const url = URL.createObjectURL(photoBlob);
+      this.objectUrls.push(url);
+      thumb = el('button', {
+        class: 'thumb-btn',
+        title: 'Remove photo',
+        'aria-label': 'Remove photo of ' + item.title,
+        onclick: () => this.handlers.onRemovePhoto(item.entryId)
+      }, [el('img', { class: 'thumb', src: url, alt: '' })]);
+    } else {
+      thumb = el('button', {
+        class: 'thumb-empty',
+        title: 'Add a photo (stays on this device)',
+        'aria-label': 'Add a photo of ' + item.title,
+        onclick: () => this.handlers.onAddPhoto(item.entryId)
+      }, [el('span', { text: '+' })]);
+    }
+
+    const meta = [];
+    if (ambiguous && TitleCollisions.covers(ambiguous, item.title)) {
+      meta.push(el('span', { class: 'id-chip', text: 'item no. ' + item.serverId }));
+    }
+    if (item.withdrawnAt) {
+      meta.push(el('span', { class: 'gone', text: 'no longer sold' }));
+    }
+
+    const body = el('div', {}, [
+      el('div', { class: 'name', text: item.title }),
+      el('div', { class: 'added', text: stamp }),
+      meta.length > 0 ? el('div', { class: 'meta' }, meta) : null
+    ]);
+
+    const actions = el('div', { class: 'row-actions' }, [
+      el('button', {
+        class: 'danger',
+        text: 'Remove',
+        onclick: () => this.handlers.onRemove(item.entryId, item.title)
+      })
+    ]);
+
+    const row = el('li', { class: item.withdrawnAt ? 'owned gone-row' : 'owned' }, [
+      el('div', { style: 'display:flex;align-items:center;gap:10px' }, [checkbox, thumb]),
+      body,
+      actions
+    ]);
+    return row;
+  }
+}
+
+class CatalogueView {
+  constructor(host, counter, handlers) {
+    this.host = host;
+    this.counter = counter;
+    this.handlers = handlers;
+  }
+
+  renderEmpty(message) {
+    this.host.textContent = '';
+    this.counter.textContent = '';
+    this.host.appendChild(el('div', { class: 'empty', text: message }));
+  }
+
+  render(catalogue, counts, result, since) {
+    this.host.textContent = '';
+
+    let live = 0;
+    for (let i = 0; i < catalogue.length; i++) {
+      if (!catalogue[i].withdrawn) live++;
+    }
+    this.counter.textContent = live + ' available';
+
+    // The assembler kept what it could; say so rather than quietly dropping rows.
+    if (result && result.rejections.length > 0) {
+      const reasons = [];
+      for (let i = 0; i < result.rejections.length; i++) reasons.push(result.rejections[i].reason);
+      this.host.appendChild(el('p', {
+        class: 'drift',
+        text: result.rejections.length + ' row' + (result.rejections.length === 1 ? '' : 's') +
+              ' from the source could not be read (' + reasons.join(', ') + '). ' +
+              'The rest loaded normally.'
+      }));
+    }
+
+    /*
+     * Withdrawn products arrive in the payload so the sync can learn about
+     * them, but there is no point offering them to add. They are filtered
+     * out of the browse list only — never out of anybody's saved list.
+     */
+    const available = [];
+    for (let i = 0; i < catalogue.length; i++) {
+      if (!catalogue[i].withdrawn) available.push(catalogue[i]);
+    }
+    catalogue = available;
+
+    const ambiguous = TitleCollisions.from(catalogue);
+    const list = el('ul', { class: 'stack' });
+    since = since || 0;
+
+    for (let i = 0; i < catalogue.length; i++) {
+      const entry = catalogue[i];
+      const held = counts[entry.uuid] || 0;
+      const meta = [];
+
+      // Adding again is the point, so say what is already there rather
+      // than blocking the button.
+      if (held > 0) meta.push(el('span', { class: 'held', text: 'on your list ×' + held }));
+      // Arrived since this device last looked.
+      if (since > 0 && entry.createdAt !== null && entry.createdAt > since) {
+        meta.push(el('span', { class: 'fresh', text: 'new' }));
+      }
+      // Two different items under one name — the number is the only way
+      // to tell them apart, so it earns its place here and nowhere else.
+      if (TitleCollisions.covers(ambiguous, entry.title)) {
+        meta.push(el('span', { class: 'id-chip', text: 'item no. ' + entry.id }));
+      }
+
+      list.appendChild(el('li', { class: 'cat' }, [
+        el('div', {}, [
+          el('div', { class: 'name', text: entry.title }),
+          meta.length > 0 ? el('div', { class: 'meta' }, meta) : null
+        ]),
+        el('button', {
+          text: 'Add',
+          'aria-label': held > 0 ? 'Add another ' + entry.title : 'Add ' + entry.title,
+          onclick: () => this.handlers.onAdd(entry)
+        })
+      ]));
+    }
+    this.host.appendChild(list);
+  }
+}
+
+/**
+ * The scan sheet. Runs the camera, hands frames to the scanner, and then
+ * either recognises the code or collects a name for a new product. It does
+ * not touch storage itself — it reports what it saw through handlers.
+ */
+class CameraScanView {
+  constructor(nodes, scannerFactory, camera, handlers) {
+    this.nodes = nodes;
+    this.scannerFactory = scannerFactory;
+    this.camera = camera;
+    this.handlers = handlers;
+    this.scanner = null;
+    this.running = false;
+    this.canvas = document.createElement('canvas');
+    this.lastAttempt = 0;
+    this.busy = false;
+    this.passes = 0;
+    this.startedAt = 0;
+    this.nudged = false;
+    this.pendingCodes = [];
+    this.pendingPhoto = null;
+    this.shotUrl = null;
+    this.collectingSecond = false;
+
+    nodes.close.addEventListener('click', () => this.close());
+    nodes.capture.addEventListener('click', () => this._capture());
+    nodes.second.addEventListener('click', () => this._collectSecond());
+    nodes.linkGo.addEventListener('click', () => this._link());
+    nodes.again.addEventListener('click', () => this.restart());
+    nodes.save.addEventListener('click', () => this._save());
+    nodes.manualToggle.addEventListener('click', () => {
+      nodes.manualRow.hidden = !nodes.manualRow.hidden;
+      if (!nodes.manualRow.hidden) nodes.manualCode.focus();
+    });
+    nodes.manualGo.addEventListener('click', () => {
+      const typed = nodes.manualCode.value.trim();
+      if (typed.length === 0) { this._say('Enter a number first.', true); return; }
+      this._handle(typed, 'typed');
+    });
+    nodes.dialog.addEventListener('close', () => this._teardown());
+  }
+
+  static get FULL() { return { x: 0, y: 0, w: 1, h: 1 }; }
+  static get RETICLE() { return { x: 0.10, y: 0.15, w: 0.80, h: 0.70 }; }
+  static get WIDE() { return { x: 0, y: 0.25, w: 1, h: 0.50 }; }
+
+  static newUuid() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    let out = '';
+    const hex = '0123456789abcdef';
+    for (let i = 0; i < 36; i++) {
+      if (i === 8 || i === 13 || i === 18 || i === 23) out += '-';
+      else if (i === 14) out += '4';
+      else out += hex[Math.floor(Math.random() * 16)];
+    }
+    return out;
+  }
+
+  async open() {
+    this._reset();
+    this.nodes.dialog.showModal();
+    if (this.scanner === null) this.scanner = await this.scannerFactory();
+    await this.restart();
+  }
+
+  close() { this.nodes.dialog.close(); }
+
+  /** One object URL, shown both in the stage and beside the name field. */
+  _showShot(photo) {
+    this._clearShot();
+    if (photo === null || photo === undefined) return;
+    this.shotUrl = URL.createObjectURL(photo);
+    this.nodes.shot.src = this.shotUrl;
+    this.nodes.shot.hidden = false;
+    this.nodes.shotNote.hidden = false;
+    this._freeze();
+  }
+
+  /** Replace the dead video with the frame that was actually read. */
+  _freeze() {
+    if (this.shotUrl === null) return;
+    this.nodes.frozen.src = this.shotUrl;
+    this.nodes.frozen.hidden = false;
+    this.nodes.video.hidden = true;
+  }
+
+  _clearShot() {
+    if (this.shotUrl !== null) {
+      URL.revokeObjectURL(this.shotUrl);
+      this.shotUrl = null;
+    }
+    this.nodes.shot.removeAttribute('src');
+    this.nodes.shot.hidden = true;
+    this.nodes.shotNote.hidden = true;
+    this.nodes.frozen.removeAttribute('src');
+    this.nodes.frozen.hidden = true;
+    this.nodes.video.hidden = false;
+  }
+
+  _reset() {
+    this.pendingCodes = [];
+    this.pendingPhoto = null;
+    this.collectingSecond = false;
+    this.nodes.linkExisting.open = false;
+    this._clearShot();
+    this.busy = false;
+    this.passes = 0;
+    this.nudged = false;
+    this.startedAt = Date.now();
+    this.nodes.capture.hidden = false;
+    this.nodes.capture.disabled = false;
+    this.nodes.form.hidden = true;
+    this.nodes.save.hidden = true;
+    this.nodes.again.hidden = true;
+    this.nodes.manualRow.hidden = true;
+    this.nodes.manualCode.value = '';
+    this.nodes.stage.classList.remove('done');
+    this._say('');
+  }
+
+  async restart() {
+    const carried = this.collectingSecond ? this.pendingCodes : null;
+    const carriedPhoto = this.collectingSecond ? this.pendingPhoto : null;
+    this._reset();
+    if (carried !== null) {
+      this.pendingCodes = carried;
+      this.pendingPhoto = carriedPhoto;
+      this.collectingSecond = true;
+    }
+    this._say('Point the camera at the product\u2019s barcode or QR code.');
+    try {
+      await this.camera.start(this.nodes.video);
+      this.running = true;
+      this._loop();
+    } catch (err) {
+      this.running = false;
+      this._say(CameraScanView._cameraProblem(err), true);
+      this.nodes.manualRow.hidden = false;
+      this.nodes.capture.hidden = true;
+    }
+  }
+
+  static _cameraProblem(err) {
+    const name = err && err.name ? err.name : '';
+    if (name === 'NotAllowedError') return 'The camera is blocked here. Allow it in the browser, or type the number below.';
+    if (name === 'NotFoundError') return 'No camera on this device. Type the number below instead.';
+    if (name === 'NotReadableError') return 'Another app is using the camera. Close it, or type the number below.';
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      return 'Cameras need a secure (https) page. Type the number below instead.';
+    }
+    return 'The camera could not start. Type the number below instead.';
+  }
+
+  /**
+   * One region of the video as pixels. The whole frame catches a code held
+   * anywhere; the centre crop is taken at full sensor resolution, which is
+   * what rescues a small or distant code — downscaling the whole frame to
+   * fit a decoder throws away exactly the detail a barcode is made of.
+   */
+  _frame(region, maxWidth) {
+    const video = this.nodes.video;
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    if (videoWidth === 0 || videoHeight === 0) return null;
+
+    const sx = Math.round(videoWidth * region.x);
+    const sy = Math.round(videoHeight * region.y);
+    const sw = Math.round(videoWidth * region.w);
+    const sh = Math.round(videoHeight * region.h);
+
+    const scale = Math.min(1, maxWidth / sw);
+    const width = Math.max(1, Math.round(sw * scale));
+    const height = Math.max(1, Math.round(sh * scale));
+
+    this.canvas.width = width;
+    this.canvas.height = height;
+    const context = this.canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(video, sx, sy, sw, sh, 0, 0, width, height);
+    return { canvas: this.canvas, imageData: context.getImageData(0, 0, width, height) };
+  }
+
+  async _attempt(regions, maxWidth) {
+    for (let i = 0; i < regions.length; i++) {
+      const frame = this._frame(regions[i], maxWidth);
+      if (frame === null) continue;
+      const found = await this.scanner.scan(frame.canvas, frame.imageData);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
+  _loop() {
+    if (!this.running) return;
+    requestAnimationFrame(() => this._loop());
+
+    const now = Date.now();
+    if (now - this.lastAttempt < 90) return;
+    if (this.busy) return;                       // never queue overlapping decodes
+    const video = this.nodes.video;
+    if (video.readyState < 2 || video.videoWidth === 0) return;
+
+    this.lastAttempt = now;
+    this.busy = true;
+    this.passes++;
+
+    // Alternate: the framed area at full detail, then the whole frame.
+    const regions = this.passes % 2 === 1 ? [CameraScanView.RETICLE] : [CameraScanView.FULL];
+    this._attempt(regions, 1280).then((found) => {
+      this.busy = false;
+      if (found !== null && this.running) this._handle(found.value, found.format);
+      else this._progress();
+    }).catch(() => { this.busy = false; });
+  }
+
+  _progress() {
+    const elapsed = Date.now() - this.startedAt;
+    if (elapsed > 9000 && !this.nudged) {
+      this.nudged = true;
+      this._say('Still looking. Fill the frame with the code, hold steady for focus, and avoid glare \u2014 or press Capture now, or type the number.');
+    }
+  }
+
+  /** Explicit capture: every region, full resolution, one careful go. */
+  async _capture() {
+    if (!this.running) { this._say('The camera is not running.', true); return; }
+    this.nodes.capture.disabled = true;
+    this.nodes.stage.classList.add('busy');
+    this._say('Reading\u2026');
+    this.busy = true;
+    try {
+      const found = await this._attempt([CameraScanView.RETICLE, CameraScanView.FULL, CameraScanView.WIDE], 1920);
+      if (found !== null) { this._handle(found.value, found.format); return; }
+      this._say('Nothing readable in that shot. Move closer so the code fills the frame, then try again.', true);
+    } catch (err) {
+      this._say('That frame could not be read.', true);
+    } finally {
+      this.busy = false;
+      this.nodes.capture.disabled = false;
+      this.nodes.stage.classList.remove('busy');
+    }
+  }
+
+  _stopCamera() {
+    this.running = false;
+    this.camera.stop();
+  }
+
+  _teardown() {
+    this._stopCamera();
+    this.nodes.video.srcObject = null;
+    this._clearShot();
+  }
+
+  /**
+   * The frame that produced the read, as a JPEG. Taken before the camera is
+   * released, so the picture is exactly what was scanned. It stays on the
+   * device like any other item photo and is never uploaded.
+   */
+  _snapshot() {
+    return new Promise((resolve) => {
+      const frame = this._frame(CameraScanView.FULL, 1280);
+      if (frame === null) { resolve(null); return; }
+      try {
+        frame.canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+  }
+
+  static kindOf(code, format) {
+    // A typed entry has no symbology of its own: digits are a barcode,
+    // anything else is whatever a QR would have carried.
+    if (format === 'typed') return /^\d+$/.test(String(code).trim()) ? 'barcode' : 'qr';
+    return format === 'qr_code' ? 'qr' : 'barcode';
+  }
+
+  async _handle(code, format) {
+    const photo = this.running ? await this._snapshot() : null;
+    this._stopCamera();
+    this.nodes.stage.classList.add('done');
+
+    const kind = CameraScanView.kindOf(code, format);
+
+    // Second pass: the person is adding the pack's other code to the same
+    // product, so do not treat it as a fresh lookup.
+    if (this.collectingSecond) {
+      this.collectingSecond = false;
+      this._rememberCode(kind, code);
+      this._showForm(this.pendingPhoto);
+      this._say('Both codes recorded. Name it and add it.');
+      return;
+    }
+
+    this.pendingCodes = [];
+    this._rememberCode(kind, code);
+    this.pendingPhoto = photo;
+
+    const known = this.handlers.lookup(code);
+    if (known !== null) {
+      this.handlers.onKnown(known, code, photo, kind);
+      this.close();
+      return;
+    }
+
+    this._say('Not in the catalogue yet: <strong>' + CameraScanView.escape(code) +
+              '</strong>. Give it a name, or say which product it belongs to.', false, true);
+    this._showForm(photo);
+    this.nodes.name.value = '';
+    this.nodes.name.focus();
+  }
+
+  _rememberCode(kind, value) {
+    const text = String(value).trim();
+    for (let i = 0; i < this.pendingCodes.length; i++) {
+      if (this.pendingCodes[i].value === text) return;
+    }
+    this.pendingCodes.push({ kind: kind, value: text });
+  }
+
+  _showForm(photo) {
+    this.nodes.form.hidden = false;
+    this.nodes.save.hidden = false;
+    this.nodes.again.hidden = false;
+    this.nodes.capture.hidden = true;
+    this._showShot(photo);
+    this._renderCodes();
+    this._fillLinkTargets();
+  }
+
+  _renderCodes() {
+    const host = this.nodes.codesHeld;
+    host.textContent = '';
+
+    let hasBarcode = false;
+    let hasQr = false;
+
+    for (let i = 0; i < this.pendingCodes.length; i++) {
+      const code = this.pendingCodes[i];
+      if (code.kind === 'qr') hasQr = true; else hasBarcode = true;
+      const chip = el('span', { class: 'code-chip' }, [
+        el('strong', { text: code.kind === 'qr' ? 'QR' : 'barcode' }),
+        el('span', { text: ' ' + (code.value.length > 30 ? code.value.slice(0, 30) + '\u2026' : code.value) })
+      ]);
+      host.appendChild(chip);
+    }
+
+    const complete = hasBarcode && hasQr;
+    this.nodes.second.hidden = complete;
+    this.nodes.secondHint.hidden = complete;
+    this.nodes.second.textContent = hasQr
+      ? 'Scan the barcode on the pack too'
+      : 'Scan the QR code on the pack too';
+  }
+
+  /** Offer the catalogue so an orphan code can join the right product. */
+  _fillLinkTargets() {
+    const select = this.nodes.linkTarget;
+    select.textContent = '';
+    const products = this.handlers.catalogue();
+
+    for (let i = 0; i < products.length; i++) {
+      select.appendChild(el('option', { value: products[i].uuid, text: products[i].title }));
+    }
+    this.nodes.linkExisting.hidden = products.length === 0;
+  }
+
+  async _collectSecond() {
+    this.collectingSecond = true;
+    this.nodes.form.hidden = true;
+    this.nodes.save.hidden = true;
+    this.nodes.capture.hidden = false;
+    await this.restart();
+    this._say('Now point it at the other code on the same pack.');
+  }
+
+  async _link() {
+    const uuid = this.nodes.linkTarget.value;
+    if (!uuid || this.pendingCodes.length === 0) return;
+
+    this.nodes.linkGo.disabled = true;
+    try {
+      await this.handlers.onLink(uuid, this.pendingCodes[0], this.pendingPhoto);
+      this.close();
+    } catch (err) {
+      this._say('Could not add that code: ' + err.message, true);
+    }
+    this.nodes.linkGo.disabled = false;
+  }
+
+  async _save() {
+    const name = this.nodes.name.value.trim();
+    if (name.length === 0) { this._say('Give the product a name first.', true); this.nodes.name.focus(); return; }
+    this.nodes.save.disabled = true;
+    try {
+      await this.handlers.onCreate(this.pendingCodes, name, this.pendingPhoto);
+      this.close();
+    } catch (err) {
+      this._say('Could not add it: ' + err.message, true);
+    }
+    this.nodes.save.disabled = false;
+  }
+
+  static escape(text) {
+    return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  }
+
+  _say(message, bad, html) {
+    const node = this.nodes.status;
+    node.classList.toggle('bad', bad === true);
+    if (html) node.innerHTML = message;
+    else node.textContent = message;
+  }
+}
+
+class QrSheetView {
+  /**
+   * The code carries an address, not the list. The numbers are registered
+   * with the server, which answers with one, and that address is the whole
+   * payload — so the code stays small whatever the list's length, and a
+   * scanner shows a link rather than a wall of digits.
+   *
+   * If the server cannot be reached the numbers themselves are encoded as
+   * a fallback, and the panel says so, because a shopping list that only
+   * works online is worse than one a stranger could read.
+   */
+  constructor(nodes, publisher, fallbackCodec, ecl, renderers, toast, memory) {
+    this.nodes = nodes;
+    this.publisher = publisher;
+    this.fallbackCodec = fallbackCodec;
+    this.ecl = ecl;
+    this.svgRenderer = renderers.svg;
+    this.pngRenderer = renderers.png;
+    this.toast = toast;
+    this.memory = memory;          // remembers the last list published
+    this.lastQr = null;
+    this.lastPayload = null;
+    this.lastPng = null;
+    this.sharesUrl = false;
+
+    nodes.close.addEventListener('click', () => nodes.dialog.close());
+    nodes.copy.addEventListener('click', () => this._copy());
+    nodes.download.addEventListener('click', () => this._download());
+    nodes.share.addEventListener('click', () => this._share());
+  }
+
+  /** The same selection, in the same order, is the same list. */
+  static signature(ids) {
+    return ids.join(',');
+  }
+
+  /**
+   * An address that names the items directly, for when none could be
+   * registered. Built on the site the app is served from, so the link
+   * resolves wherever this deployment lives.
+   */
+  static addressForNumbers(ids) {
+    const base = API_BASE !== ''
+      ? API_BASE
+      : (typeof location !== 'undefined' ? location.origin : '');
+
+    return base + '/items/by-id/' + ids.join('-');
+  }
+
+  async open(ids) {
+    this.ids = ids;
+    this.nodes.dialog.showModal();
+    await this.refresh();
+  }
+
+  async refresh() {
+    this.nodes.notice.textContent = '';
+    this.nodes.payload.hidden = true;
+    this.nodes.copy.disabled = true;
+    this.nodes.download.disabled = true;
+    this.nodes.share.hidden = true;
+    this.lastQr = null;
+    this.lastPayload = null;
+    this.lastPng = null;
+
+    if (this.ids.length === 0) {
+      this._stage('Tick at least one item to build a code.');
+      this.nodes.note.textContent = '';
+      return;
+    }
+
+    this.nodes.note.textContent = '';
+
+    let payload = null;
+    let shared = true;
+    const signature = QrSheetView.signature(this.ids);
+    const remembered = await this.memory.recall(signature);
+
+    if (remembered !== null) {
+      /*
+       * This exact list has been published before, so its address still
+       * resolves. Reusing it avoids minting another row on the server for
+       * a list that already exists, and means reopening this panel costs
+       * nothing at all.
+       */
+      payload = remembered;
+      this._stage('\u00a0');
+    } else {
+      this._stage('Registering the list\u2026');
+      try {
+        const published = await this.publisher.publish(this.ids);
+        payload = published.url;
+        await this.memory.remember(signature, payload);
+        if (published.skipped > 0) {
+          this._notice(published.skipped + ' item' + (published.skipped === 1 ? '' : 's') +
+                       ' could not be included \u2014 they are no longer in the catalogue.');
+        }
+      } catch (err) {
+        /*
+         * Offline, or the server is down. The list cannot be registered, so
+         * the numbers travel inside the address instead of a reference to a
+         * stored list. It is still a link to this same site, and it opens
+         * the same page — a scanner gets something it can act on rather
+         * than a row of digits nobody can interpret.
+         */
+        shared = false;
+        payload = QrSheetView.addressForNumbers(this.ids);
+        this._notice('The list could not be registered (' + err.message +
+                     '), so the code carries the item numbers inside the link itself. ' +
+                     'It opens the same page once there is a connection.');
+      }
+    }
+
+    let qr;
+    try {
+      qr = QrCode.encodeText(payload, this.ecl, 1, 40);
+    } catch (err) {
+      this._stage('That list is too long to encode.');
+      return;
+    }
+
+    this.lastQr = qr;
+    this.lastPayload = payload;
+    this.sharesUrl = shared;
+
+    this.nodes.stage.innerHTML = this.svgRenderer.render(qr);
+    this.nodes.note.textContent = this.ids.length + ' item' +
+      (this.ids.length === 1 ? '' : 's') + ' \u00b7 ' + (shared
+        ? 'scanning opens a page showing their numbers and names'
+        : 'the numbers are in the link itself, since the list could not be registered');
+
+    this.nodes.payload.hidden = false;
+    this.nodes.payload.textContent = payload;
+    this.nodes.copy.disabled = false;
+    this.nodes.download.disabled = false;
+    this.nodes.copy.textContent = 'Copy link';
+
+    this._offerSharing();
+  }
+
+  /**
+   * The share sheet is only worth offering once there is a code on screen,
+   * and only where the device actually has one.
+   *
+   * The image is rendered now rather than when the button is pressed.
+   * Sharing requires transient activation — the browser insists the call
+   * belongs to the tap that triggered it — and awaiting a canvas encode
+   * first is enough to lose that on Safari.
+   */
+  _offerSharing() {
+    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return;
+
+    this.nodes.share.hidden = false;
+
+    this.pngRenderer.toBlob(this.lastQr).then((blob) => {
+      this.lastPng = blob;
+    }).catch(() => {
+      this.lastPng = null;      // the link alone is still shareable
+    });
+  }
+
+  _shareData() {
+    const title = 'Shared list';
+    const file = this.lastPng === null
+      ? null
+      : new File([this.lastPng], 'shared-list.png', { type: 'image/png' });
+
+    const candidates = [];
+
+    if (file !== null) {
+      candidates.push({ title: title, text: this.lastPayload, files: [file] });
+      candidates.push({ title: title, files: [file] });
+    }
+    candidates.push({ title: title, url: this.lastPayload });
+    candidates.push({ title: title, text: this.lastPayload });
+
+    // Targets differ in what they accept; take the richest that this
+    // device says it can actually handle.
+    for (let i = 0; i < candidates.length; i++) {
+      if (typeof navigator.canShare !== 'function') {
+        if (candidates[i].files === undefined) return candidates[i];
+        continue;
+      }
+      if (navigator.canShare(candidates[i])) return candidates[i];
+    }
+    return null;
+  }
+
+  async _share() {
+    /*
+     * Registering first costs a round trip, and a round trip can cost the
+     * transient activation that sharing requires — Safari insists the call
+     * belongs to the tap that started it. So the common case, where the
+     * list is already registered, shares straight away with no await in
+     * between; only a code made offline takes the slower path, and if the
+     * activation is gone by then the person is asked to tap once more.
+     */
+    if (!this.sharesUrl) {
+      try {
+        await this._addressToShare();
+      } catch (err) {
+        // Still offline; share the link that names the items. The share
+        // sheet itself is about to appear, so it says so rather than a
+        // toast that would sit behind it.
+      }
+    }
+
+    const data = this._shareData();
+
+    if (data === null) {
+      this.toast.show('Sharing is not available here');
+      return;
+    }
+
+    try {
+      await navigator.share(data);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;   // they dismissed it
+      if (err && err.name === 'NotAllowedError') {
+        this.toast.show('Link ready \u2014 tap Share again');
+        return;
+      }
+      this.toast.show('Could not open the share sheet');
+    }
+  }
+
+  _stage(message) {
+    this.nodes.stage.innerHTML = '';
+    this.nodes.stage.appendChild(el('div', { class: 'empty', text: message }));
+  }
+
+  _notice(message) {
+    this.nodes.notice.appendChild(el('div', { class: 'notice', text: message }));
+  }
+
+  /**
+   * The address to hand to somebody else.
+   *
+   * The code on screen may have been made offline, in which case it names
+   * the items inside the link because there was no way to register them.
+   * Copying or sharing happens here and now, though, with the app in front
+   * of the person — so it is worth one attempt at registering properly,
+   * and handing over the short, stable address instead.
+   *
+   * If that succeeds the panel adopts it, so the code being shown and the
+   * link being sent never disagree.
+   */
+  async _addressToShare() {
+    if (this.sharesUrl || this.lastPayload === null) return this.lastPayload;
+
+    const published = await this.publisher.publish(this.ids);
+    await this.memory.remember(QrSheetView.signature(this.ids), published.url);
+    await this.refresh();
+
+    return this.lastPayload;
+  }
+
+  async _copy() {
+    if (this.lastPayload === null) return;
+
+    let address = this.lastPayload;
+    let registered = true;
+
+    try {
+      address = await this._addressToShare();
+    } catch (err) {
+      registered = false;   // still offline; the link naming the items serves
+    }
+
+    try {
+      await navigator.clipboard.writeText(address);
+      // One message, not two: a toast replaces its predecessor, so saying
+      // both would leave only the least informative half on screen.
+      this.toast.show(registered
+        ? 'Link copied'
+        : 'Copied \u2014 no connection, so the link names the items instead');
+    } catch (err) {
+      this.toast.show('Copying is blocked here \u2014 select the text instead');
+    }
+  }
+
+  async _download() {
+    if (this.lastQr === null) return;
+    const blob = this.lastPng !== null ? this.lastPng : await this.pngRenderer.toBlob(this.lastQr);
+    const url = URL.createObjectURL(blob);
+    const link = el('a', { href: url, download: 'shared-list.png' });
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    this.toast.show('Saved as shared-list.png');
+  }
+}
+
+/**
+ * Turns a selection into a key that identifies *this device's* copy of that
+ * list, and nobody else's.
+ *
+ * The secret never leaves the browser, so the hash cannot be recomputed by
+ * anyone who does not have it — not another person who picked the same
+ * products, and not the server, which therefore cannot tell which lists
+ * came from one device or what is in one from its key.
+ *
+ * Digesting needs a secure context. Where there is none the key is simply
+ * omitted: the server then creates a list every time, which is worse
+ * housekeeping but never wrong, and the memory below still prevents the
+ * common case of pressing share twice.
+ */
+class ListFingerprint {
+  constructor(meta) { this.meta = meta; }
+
+  /**
+   * The device's secret, created on first use if the database predates
+   * them. Never replaced once written: overwriting would orphan every list
+   * already published from here, leaving duplicates behind on the next
+   * share — the very thing the key exists to prevent.
+   */
+  async secret() {
+    const stored = await this.meta.get('deviceSecret', null);
+
+    if (typeof stored === 'string' && stored.length === 64) return stored;
+
+    const fresh = Database.newSecret();
+    if (fresh === null) return null;
+
+    await this.meta.set('deviceSecret', fresh);
+    return fresh;
+  }
+
+  async of(ids) {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+
+    try {
+      const secret = await this.secret();
+      if (secret === null) return null;
+      const material = new TextEncoder().encode(secret + ':' + ids.join(','));
+      const digest = await crypto.subtle.digest('SHA-256', material);
+      const bytes = new Uint8Array(digest);
+
+      let hex = '';
+      for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+      return hex;
+    } catch (err) {
+      return null;
+    }
+  }
+}
+
+/**
+ * Remembers the lists this device has published, so generating a code for a
+ * selection it has shared before reuses that address rather than asking the
+ * server for another one.
+ *
+ * Several are kept, not just the most recent. People move between a few
+ * standing lists — the weekly one, the one for a particular cupboard — and
+ * remembering only the last would send every switch back to the server.
+ * That returns the same address anyway, but it is a round trip that fails
+ * when there is no signal, dropping a list that has a perfectly good
+ * address onto the fallback form for no reason.
+ */
+class PublishedListMemory {
+  constructor(meta, capacity) {
+    this.meta = meta;
+    this.capacity = capacity === undefined ? 25 : capacity;
+  }
+
+  async _all() {
+    const stored = await this.meta.get('publishedLists', null);
+    if (Array.isArray(stored)) return stored;
+
+    // The earlier shape held a single list; carry it over.
+    const single = await this.meta.get('publishedList', null);
+    if (single !== null && single.signature) return [single];
+
+    return [];
+  }
+
+  async recall(signature) {
+    const known = await this._all();
+
+    for (let i = 0; i < known.length; i++) {
+      if (known[i].signature === signature) return known[i].url;
+    }
+    return null;
+  }
+
+  async remember(signature, url) {
+    const known = await this._all();
+    const kept = [{ signature: signature, url: url, at: Date.now() }];
+
+    for (let i = 0; i < known.length && kept.length < this.capacity; i++) {
+      if (known[i].signature !== signature) kept.push(known[i]);
+    }
+
+    await this.meta.set('publishedLists', kept);
+  }
+}
+
+/* ==================================================================
+ * 9. COMPOSITION ROOT — the only place that knows about every part.
+ * ================================================================== */
+
+class App {
+  constructor(service, source, sync, meta, views, toast) {
+    this.service = service;
+    this.source = source;
+    this.sync = sync;
+    this.meta = meta;
+    this.lastSeenAt = 0;
+    this.seenMarkRead = false;
+    this.views = views;
+    this.toast = toast;
+    this.storageState = 'pending';
+    this.catalogue = [];
+    this.index = null;
+    this.counts = {};
+    this.lastResult = null;
+    this.filter = new AddedSinceFilter();
+    this.visible = [];
+    this.selection = new Set();
+    this.photoCache = {};
+  }
+
+  async start() {
+    // Catalogue first: the personal list is checked against it, so there is
+    // nothing to check until it has arrived.
+    await this.loadCatalogue();
+    const report = await this.syncWithCatalogue();
+    await this.refreshShelf();
+    return report;
+  }
+
+  /**
+   * Bring the on-device entries into step with the catalogue, then note how
+   * far the catalogue has been seen so new products can be flagged.
+   */
+  async syncWithCatalogue() {
+    if (this.catalogue.length === 0) return null;
+
+    const byNumber = {};
+    let newest = 0;
+    for (let i = 0; i < this.catalogue.length; i++) {
+      const item = this.catalogue[i];
+      byNumber[item.id] = item;
+      if (item.updatedAt !== null && item.updatedAt > newest) newest = item.updatedAt;
+    }
+
+    const entries = await this.service.list();
+    const report = await this.sync.reconcile(entries, byNumber);
+
+    if (!this.seenMarkRead) {
+      this.seenMarkRead = true;
+      this.lastSeenAt = await this.meta.get('catalogueSeenAt', 0);
+    }
+    await this.meta.set('catalogueSeenAt', newest === 0 ? Date.now() : newest);
+
+    return report;
+  }
+
+  async refreshShelf() {
+    const items = await this.service.list();
+
+    this.photoCache = {};
+    for (let i = 0; i < items.length; i++) {
+      const blob = await this.service.photo(items[i].entryId);
+      if (blob) this.photoCache[items[i].entryId] = blob;
+    }
+
+    const live = new Set();
+    const counts = {};
+    for (let i = 0; i < items.length; i++) {
+      live.add(items[i].entryId);
+      counts[items[i].uuid] = (counts[items[i].uuid] || 0) + 1;
+    }
+
+    // Keep the selection in step with what actually exists.
+    const stale = [];
+    this.selection.forEach((entryId) => { if (!live.has(entryId)) stale.push(entryId); });
+    for (let i = 0; i < stale.length; i++) this.selection.delete(stale[i]);
+    for (let i = 0; i < items.length; i++) {
+      if (!this.selection.has(items[i].entryId)) this.selection.add(items[i].entryId);
+    }
+
+    this.items = items;
+    this.counts = counts;
+    this.visible = this.filter.apply(items);
+    this.views.shelf.render(this.visible, this.photoCache, this.selection, items.length, this.filter.label());
+    this.views.cartButton.render(items.length);
+    this.views.erase.render(items.length);
+    if (this.catalogue.length > 0) {
+      this.views.catalogue.render(this.catalogue, counts, this.lastResult, this.lastSeenAt);
+    }
+  }
+
+  async loadCatalogue() {
+    this.views.catalogue.renderEmpty('Loading items\u2026');
+    try {
+      const result = await this.source.fetchItems();
+      this.catalogue = result.items;
+      this.index = new CatalogueIndex(result.items);
+      this.lastResult = result;
+      this.views.catalogue.render(this.catalogue, this.counts, result, this.lastSeenAt);
+    } catch (err) {
+      this.catalogue = [];
+      this.views.catalogue.renderEmpty('Could not read the items source: ' + err.message);
+    }
+  }
+
+  /**
+   * Wipe the personal list. The catalogue is reloaded afterwards purely so
+   * the "on your list" counts reset to zero — its contents are untouched,
+   * scanned-in products included.
+   */
+  async eraseMine() {
+    const removed = await this.service.eraseLocalData();
+    this.selection.clear();
+    await this.refreshShelf();
+    return removed;
+  }
+
+  /**
+   * Scanning a withdrawn product is evidence it still exists, so the
+   * catalogue is told before the item joins the personal list.
+   */
+  async reviveFromScan(writer, dto, code, kind, photo) {
+    const response = await writer.revive(dto, { kind: kind, value: code });
+    await this.loadCatalogue();
+    // Entries already holding this product are stale the moment it comes
+    // back, so reconcile before adding rather than waiting for a reload.
+    await this.syncWithCatalogue();
+
+    const refreshed = this._itemFrom(response) || this.findByCode(code) || dto;
+    const entryId = await this.service.add(refreshed);
+    if (photo) await this.service.attachPhoto(entryId, photo);
+    await this.refreshShelf();
+    return refreshed;
+  }
+
+  /** Find a catalogue entry by any code printed on the packaging. */
+  findByCode(code) {
+    if (this.index === null) return null;
+    return this.index.find(code);
+  }
+
+  /**
+   * Catalogue first, then the personal list — the item has to exist in the
+   * shared data before it can be referenced from someone's own shelf.
+   */
+  /**
+   * Turn what a write returned into an item, through the same assembler the
+   * catalogue goes through. Using the response beats re-reading the
+   * catalogue and hunting for the row: it needs no second round trip, and
+   * it cannot be defeated by a cached copy that predates the write.
+   */
+  _itemFrom(body) {
+    if (!body || typeof body !== 'object') return null;
+    try {
+      const assembled = this.source.assembler.assemble([body]);
+      return assembled.items.length > 0 ? assembled.items[0] : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
+   * The catalogue must accept the product before it reaches the personal
+   * list. `writer.create` rejects on any non-2xx, so reaching the next line
+   * means the server has it.
+   */
+  async createFromScan(writer, codes, name, photo) {
+    const response = await writer.create(codes, name);
+
+    let created = this._itemFrom(response);
+
+    if (created === null) {
+      // An older server that answers without a body: fall back to reading
+      // the catalogue again and finding it by the code just scanned.
+      await this.loadCatalogue();
+      created = this.findByCode(codes[0].value);
+    }
+
+    if (created === null) throw new Error('the server accepted it but did not say which item it is');
+
+    const entryId = await this.service.add(created);
+    if (photo) await this.service.attachPhoto(entryId, photo);
+
+    await this.loadCatalogue();   // so the browse list shows it too
+    await this.refreshShelf();
+    return created;
+  }
+
+  /**
+   * Record a code on a product that already exists, so the product can be
+   * found afterwards by either of the codes on its packaging.
+   */
+  async linkCode(writer, uuid, code, photo) {
+    const response = await writer.link(uuid, code);
+    await this.loadCatalogue();
+    await this.syncWithCatalogue();
+
+    const item = this._itemFrom(response) || this.findByCode(code.value);
+    if (item === null) throw new Error('the server accepted it but did not say which item it is');
+
+    const entryId = await this.service.add(item);
+    if (photo) await this.service.attachPhoto(entryId, photo);
+    await this.refreshShelf();
+    return item;
+  }
+
+  /**
+   * Only what the filter leaves on screen reaches the QR code. An item
+   * added twice contributes its number twice — the list is a record of
+   * entries, not a set of distinct products.
+   */
+  selectedIds() {
+    const ids = [];
+    for (let i = 0; i < this.visible.length; i++) {
+      if (this.selection.has(this.visible[i].entryId)) ids.push(this.visible[i].serverId);
+    }
+    ids.sort((a, b) => a - b);
+    return ids;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+
+(async function main() {
+  const toast = new Toast(document.getElementById('toast'));
+
+  let db;
+  try {
+    db = await Database.open();
+  } catch (err) {
+    document.querySelector('.shell').appendChild(el('div', {
+      class: 'empty',
+      text: 'This browser will not open local storage, so the list cannot be saved. Private browsing sometimes blocks it.'
+    }));
+    return;
+  }
+
+  const service = new ShelfService(new ItemRepository(db), new PhotoRepository(db));
+
+  const mockFeed = new LocalMockFeed();
+  const feed = new FallbackItemFeed(new HttpItemFeed(API_BASE), mockFeed);
+  const source = new ItemSource(feed, new EnvelopeReader(), new ItemDtoAssembler());
+
+  const photoInput = el('input', { type: 'file', accept: 'image/*', style: 'display:none' });
+  document.body.appendChild(photoInput);
+  let photoTarget = null;
+
+  const itemRepository = new ItemRepository(db);
+  const app = new App(
+    service,
+    source,
+    new CatalogueSync(itemRepository),
+    new MetaRepository(db),
+    {},
+    toast
+  );
+
+  app.views.shelf = new ShelfListView(
+    document.getElementById('mine-host'),
+    document.getElementById('mine-count'),
+    {
+      onToggle: (entryId, checked) => {
+        if (checked) app.selection.add(entryId); else app.selection.delete(entryId);
+      },
+      onRemove: async (entryId, title) => {
+        await service.remove(entryId);
+        await app.refreshShelf();
+        toast.show(title + ' removed');
+      },
+      onAddPhoto: (entryId) => { photoTarget = entryId; photoInput.click(); },
+      onRemovePhoto: async (entryId) => {
+        await service.removePhoto(entryId);
+        await app.refreshShelf();
+        toast.show('Photo deleted from this device');
+      }
+    }
+  );
+
+  app.views.cartButton = new CartButtonView(
+    document.getElementById('open-cart'),
+    document.getElementById('cart-count')
+  );
+
+  app.views.storage = new StorageNoticeView(document.getElementById('storage-note'));
+
+  app.views.erase = new EraseControlView(
+    {
+      start: document.getElementById('delete-mine'),
+      cancel: document.getElementById('confirm-cancel'),
+      confirm: document.getElementById('confirm-go'),
+      text: document.getElementById('confirm-text'),
+      normal: document.getElementById('drawer-foot'),
+      confirmRow: document.getElementById('confirm-foot')
+    },
+    async () => {
+      const removed = await app.eraseMine();
+      app.views.storage.render(app.storageState);
+      toast.show(removed === 1 ? '1 item deleted from this device' : removed + ' items deleted from this device');
+    }
+  );
+
+  const cart = document.getElementById('cart');
+  const openCart = () => {
+    if (!cart.open) cart.showModal();
+    app.views.storage.render(app.storageState);
+  };
+
+  document.getElementById('open-cart').addEventListener('click', openCart);
+  document.getElementById('close-cart').addEventListener('click', () => cart.close());
+
+  app.views.catalogue = new CatalogueView(
+    document.getElementById('catalogue-host'),
+    document.getElementById('catalogue-count'),
+    {
+      onAdd: async (entry) => {
+        await service.add(entry);
+        await app.refreshShelf();
+        openCart();
+        const held = app.counts[entry.uuid] || 1;
+        toast.show(held > 1 ? entry.title + ' added again (×' + held + ')' : entry.title + ' added');
+      }
+    }
+  );
+
+  photoInput.addEventListener('change', async () => {
+    if (!photoTarget || photoInput.files.length === 0) return;
+    try {
+      await service.attachPhoto(photoTarget, photoInput.files[0]);
+      await app.refreshShelf();
+      toast.show('Photo saved on this device only');
+    } catch (err) {
+      toast.show(err.message);
+    }
+    photoInput.value = '';
+    photoTarget = null;
+  });
+
+  const qrSheet = new QrSheetView(
+    {
+      dialog: document.getElementById('qr-sheet'),
+      stage: document.getElementById('qr-stage'),
+      note: document.getElementById('qr-note'),
+      notice: document.getElementById('qr-notice'),
+      payload: document.getElementById('qr-payload'),
+      close: document.getElementById('close-qr'),
+      copy: document.getElementById('copy-payload'),
+      download: document.getElementById('download-qr'),
+      share: document.getElementById('share-qr')
+    },
+    new HttpListPublisher(API_BASE, new ListFingerprint(new MetaRepository(db))),
+    new SeparatedIdCodec(),   // only used if the list cannot be registered
+    'H',
+    { svg: new QrSvgRenderer(4), png: new QrPngRenderer(4, 8) },
+    toast,
+    new PublishedListMemory(new MetaRepository(db))
+  );
+
+  const dateField = document.getElementById('added-since');
+  const clearFilter = document.getElementById('clear-filter');
+
+  // No point offering days that cannot have items on them.
+  const today = new Date();
+  dateField.max = today.getFullYear() + '-' +
+    String(today.getMonth() + 1).padStart(2, '0') + '-' +
+    String(today.getDate()).padStart(2, '0');
+
+  const applyFilter = async () => {
+    app.filter.setFrom(dateField.value);
+    clearFilter.hidden = !app.filter.active;
+    await app.refreshShelf();
+  };
+  dateField.addEventListener('change', applyFilter);
+  clearFilter.addEventListener('click', async () => {
+    dateField.value = '';
+    await applyFilter();
+  });
+
+  /*
+   * Contributions go to whichever catalogue is actually being read. Writing
+   * to the server while reading from the fallback would lose the item.
+   */
+  const httpWriter = new HttpCatalogueWriter(API_BASE);
+  const mockWriter = new MockCatalogueWriter(mockFeed);
+  const catalogueWriter = {
+    create: (codes, name) => feed.usingBackup
+      ? mockWriter.create(codes, name)
+      : httpWriter.create(codes, name),
+    link: (uuid, code) => feed.usingBackup
+      ? mockWriter.link(uuid, code)
+      : httpWriter.link(uuid, code),
+    revive: (dto, code) => feed.usingBackup
+      ? mockWriter.revive(dto, code)
+      : httpWriter.revive(dto, code)
+  };
+  const scanView = new CameraScanView(
+    {
+      dialog: document.getElementById('scan-sheet'),
+      stage: document.getElementById('scan-stage'),
+      video: document.getElementById('scan-video'),
+      status: document.getElementById('scan-status'),
+      form: document.getElementById('scan-form'),
+      name: document.getElementById('scan-name'),
+      save: document.getElementById('scan-save'),
+      again: document.getElementById('scan-again'),
+      close: document.getElementById('close-scan'),
+      manualToggle: document.getElementById('manual-toggle'),
+      manualRow: document.getElementById('manual-row'),
+      manualCode: document.getElementById('manual-code'),
+      manualGo: document.getElementById('manual-go'),
+      second: document.getElementById('scan-second'),
+      secondHint: document.getElementById('second-hint'),
+      codesHeld: document.getElementById('codes-held'),
+      linkExisting: document.getElementById('link-existing'),
+      linkTarget: document.getElementById('link-target'),
+      linkGo: document.getElementById('link-go'),
+      capture: document.getElementById('scan-capture'),
+      shot: document.getElementById('scan-shot'),
+      shotNote: document.getElementById('scan-shot-note'),
+      frozen: document.getElementById('scan-frozen')
+    },
+    () => CodeScanner.create(),
+    new CameraFeed(),
+    {
+      lookup: (code) => app.findByCode(code),
+      onKnown: async (entry, code, photo, kind) => {
+        if (entry.withdrawn) {
+          const revived = await app.reviveFromScan(catalogueWriter, entry, code, kind, photo);
+          openCart();
+          toast.show(revived.title + ' is back in the catalogue, and on your list');
+          return;
+        }
+
+        const entryId = await service.add(entry);
+        if (photo) await service.attachPhoto(entryId, photo);
+        await app.refreshShelf();
+        openCart();
+        toast.show(entry.title + (photo ? ' scanned, added with its photo' : ' scanned and added'));
+      },
+      catalogue: () => {
+        const live = [];
+        for (let i = 0; i < app.catalogue.length; i++) {
+          if (!app.catalogue[i].withdrawn) live.push(app.catalogue[i]);
+        }
+        return live;
+      },
+      onCreate: async (codes, name, photo) => {
+        const created = await app.createFromScan(catalogueWriter, codes, name, photo);
+        openCart();
+        toast.show(codes.length > 1
+          ? created.title + ' added with both its codes'
+          : created.title + ' added to the catalogue and your list');
+      },
+      onLink: async (uuid, code, photo) => {
+        const item = await app.linkCode(catalogueWriter, uuid, code, photo);
+        openCart();
+        toast.show('That code now finds ' + item.title);
+      }
+    }
+  );
+
+  const catalogueDisclosure = new DisclosureView(
+    document.getElementById('toggle-catalogue'),
+    document.getElementById('catalogue-region')
+  );
+
+  document.getElementById('open-scan').addEventListener('click', () => scanView.open());
+
+  document.getElementById('open-qr').addEventListener('click', () => qrSheet.open(app.selectedIds()));
+
+  // Fire and forget: the app works either way.
+  StoragePersistence.request().then((state) => {
+    app.storageState = state;
+    if (cart.open) app.views.storage.render(state);
+  });
+
+  const report = await app.start();
+
+  if (report !== null && (report.updated.length > 0 || report.missing.length > 0)) {
+    const notes = [];
+
+    if (report.updated.length > 0) {
+      const what = {};
+      for (let i = 0; i < report.updated.length; i++) {
+        const changes = report.updated[i].changes;
+        for (let j = 0; j < changes.length; j++) what[changes[j]] = true;
+      }
+      notes.push(report.updated.length + ' item' + (report.updated.length === 1 ? '' : 's') +
+                 ' updated from the catalogue (' + Object.keys(what).join(', ') + ')');
+    }
+
+    if (report.missing.length > 0) {
+      notes.push(report.missing.length + ' no longer listed, kept on your list');
+    }
+
+    toast.show(notes.join(' · '));
+  }
+})();
+</script>
+</body>
+</html>

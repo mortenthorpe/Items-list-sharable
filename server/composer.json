@@ -1,0 +1,42 @@
+{
+  "name": "shelf/catalogue-api",
+  "description": "Anonymous product catalogue: emits the item list, accepts scanned contributions.",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "ext-ctype": "*",
+    "ext-iconv": "*",
+    "doctrine/dbal": "^4.0",
+    "doctrine/doctrine-bundle": "^2.12",
+    "doctrine/doctrine-migrations-bundle": "^3.3",
+    "doctrine/orm": "^3.2",
+    "symfony/console": "^7.1",
+    "symfony/dotenv": "^7.1",
+    "symfony/flex": "^2",
+    "symfony/framework-bundle": "^7.1",
+    "symfony/property-access": "^7.1",
+    "symfony/runtime": "^7.1",
+    "symfony/serializer": "^7.1",
+    "symfony/uid": "^7.1",
+    "symfony/validator": "^7.1",
+    "symfony/yaml": "^7.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "symfony/flex": true,
+      "symfony/runtime": true
+    }
+  },
+  "scripts": {
+    "db": [
+      "php bin/console doctrine:database:create --if-not-exists",
+      "php bin/console doctrine:migrations:migrate --no-interaction",
+      "php bin/console app:seed-catalogue"
+    ]
+  }
+}

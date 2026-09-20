@@ -1,0 +1,10 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    http_method_override: false
+
+    # No sessions. The API has no notion of who is calling it, and a session
+    # would hand every caller a tracking cookie whether we used it or not.
+    session: false
+
+    php_errors:
+        log: true
