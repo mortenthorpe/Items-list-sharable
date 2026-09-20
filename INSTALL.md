@@ -99,13 +99,13 @@ symfony serve                       # development
 php -S localhost:8000 -t public     # development, no Symfony CLI
 ```
 
-Open `https://your-host/items-list.html`.
+Open `https://your-host/index.html`.
 
 ## Hosting the app separately
 
 If the page lives somewhere other than the API, two settings have to agree.
 
-In `items-list.html`, near the top of the script:
+In `index.html`, near the top of the script:
 
 ```js
 const API_BASE_RAW = 'https://api.example.org';
@@ -185,7 +185,6 @@ refuses a hard delete rather than quietly emptying someone's list.
 git pull
 composer install --no-dev --optimize-autoloader
 php bin/console doctrine:migrations:migrate --no-interaction
-cp ../items-list.html public/
 php bin/console cache:clear
 ```
 
