@@ -9,8 +9,8 @@ to someone — a carer, a pharmacist, a partner doing the shopping — it become
 a QR code holding a single link. None of it needs an account.
 
 ```
-items-list.html           the app: one self-contained file, no build step
 server/                   Symfony 7 + Doctrine catalogue API
+server/public/index.html   the page a user loads to have a private list of item, add/remove from the list, as well as submitting new list-items to the server. Also handles the creation of the QR code, represneting a URL-link to the users list.
 server/public/list.html   the page a scanned code opens
 ```
 
